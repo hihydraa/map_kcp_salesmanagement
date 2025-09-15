@@ -15,13 +15,11 @@
   </style>
 </head>
 <body class="bg-gray-50">
-  <!-- Sidebar -->
   <div id="panel" class="fixed z-[999] top-3 left-3 w-[360px] max-w-[92vw] bg-white/95 backdrop-blur border border-gray-200 rounded-2xl shadow-xl">
     <div class="p-4 border-b">
       <h1 class="text-xl font-bold text-gray-900">KC Fuel – Sales & Leads Map</h1>
       <p class="text-xs text-gray-500">แผนที่บริหารลูกค้าปัจจุบัน & ลูกค้ามุ่งหวัง (ดึงข้อมูลแบบเรียลไทม์จาก Google Sheets)</p>
     </div>
-
     <div class="p-4 flex flex-col gap-3">
       <div class="grid grid-cols-2 gap-2">
         <label class="text-xs text-gray-600">สาขา (Branch)
@@ -42,7 +40,6 @@
           </select>
         </label>
       </div>
-
       <div class="flex items-center gap-3">
         <label class="inline-flex items-center gap-2 text-sm">
           <input id="toggleLeads" type="checkbox" class="rounded" checked /> แสดง Leads
@@ -51,12 +48,10 @@
           <input id="toggleNearest" type="checkbox" class="rounded" checked /> คำนวณรถที่ใกล้สุดให้ Leads
         </label>
       </div>
-
       <div class="flex gap-2">
         <button id="btnRefresh" class="px-3 py-2 text-sm rounded-lg bg-gray-900 text-white">รีเฟรชข้อมูล</button>
         <button id="btnReset" class="px-3 py-2 text-sm rounded-lg border">ล้างตัวกรอง</button>
       </div>
-
       <div class="rounded-xl border bg-white p-3">
         <div class="text-xs text-gray-500 mb-1">สรุป</div>
         <div id="summary" class="text-sm grid grid-cols-2 gap-x-3 gap-y-1">
@@ -67,282 +62,44 @@
           <div>Lost:</div><div id="sumLost" class="font-semibold">-</div>
         </div>
       </div>
-
-      <div class="text-xs text-gray-500">ตั้งค่าในชีท: <span class="font-mono">Settings</span> (CENTER_LAT, CENTER_LNG, ZOOM, THRESHOLD_RISK_DAYS, THRESHOLD_LOST_DAYS)</div>
+      <div class="text-xs text-gray-500">ตั้งค่าในชีท: <span class="font-mono">Settings</span></div>
     </div>
   </div>
-
   <div id="map"></div>
 
   <script>
-    // === 1) CONFIG –– ใส่ Google Sheet ID และชื่อชีท ===
-    // วิธีหา SHEET_ID: เปิดสเปรดชีท -> URL จะมี /d/<SHEET_ID>/ ...
-    const SHEET_ID = "1KicClhZHtMr9bBmwLv31zvb0021SRUcGr2eRRagsO6c"; // <- เปลี่ยนค่านี้
-    const SHEETS = {
-      customers: "Customers",
-      leads: "leads",
-      trucks: "Trucks",
-      settings: "Settings"
-    };
+    const SHEET_ID = "1KicClhZHtMr9bBmwLv31zvb0021SRUcGr2eRRagsO6c";
+    const SHEETS = { customers: "Customers", leads: "leads", trucks: "Trucks", settings: "Settings", sales: "lastest_sales" };
 
-    // ดึงข้อมูลด้วย Google Visualization API (JSON) – ไม่ต้องใช้ key เมื่อ set เป็น "Anyone with the link"
     async function fetchSheet(sheetName) {
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&tq=`;
       const res = await fetch(url, { cache: "no-store" });
       const text = await res.text();
-      // ตัด wrapper: google.visualization.Query.setResponse(...);
       const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
       const cols = json.table.cols.map(c => c.label || c.id);
       const rows = json.table.rows.map(r => (r.c||[]).map(c => c ? c.v : ""));
       return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
     }
 
-    // === 2) MAP SETUP ===
-    const map = L.map('map', { zoomControl: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    const map = L.map('map');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+    const layerCustomers=L.layerGroup().addTo(map),layerLeads=L.layerGroup().addTo(map),layerTrucks=L.layerGroup().addTo(map),layerLines=L.layerGroup().addTo(map);
 
-    const layerCustomers = L.layerGroup().addTo(map);
-    const layerLeads = L.layerGroup().addTo(map);
-    const layerTrucks = L.layerGroup().addTo(map);
-    const layerLines = L.layerGroup().addTo(map);
+    let data={customers:[],leads:[],trucks:[],settings:[],sales:[]};
+    let thresholds={risk:30,lost:60};
+    let truckColorMap={};
+    function normHex(c){if(!c)return"";c=String(c).trim();return c.startsWith('#')?c:'#'+c}
+    function getTruckColor(id){if(!id)return"";return truckColorMap[String(id).trim().toLowerCase()]||""}
 
-    const colors = {
-      active: '#16a34a', // green
-      risky: '#f59e0b',  // amber
-      lost: '#ef4444',   // red
-      lead: '#2563eb',   // blue
-      truck: '#111827'   // gray-900
-    };
+    function normStatusByDate(lastDate){if(!lastDate)return 'lost customer';const d=new Date(lastDate);if(isNaN(d))return 'lost customer';const diff=(Date.now()-d.getTime())/86400000;if(diff>thresholds.lost)return 'lost customer';if(diff>thresholds.risk)return'risky to lost';return'active'}
 
-    function colorForStatus(status) {
-      const s = (status||'').toString().toLowerCase();
-      if (s.includes('lost')) return colors.lost;
-      if (s.includes('risky')) return colors.risky;
-      return colors.active;
-    }
+    function popHtml(obj,type){const rows=Object.entries(obj).filter(([k,v])=>!k.startsWith('_')&&v!="").map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('');const badge= type==='customer'?`<span class="badge" style="background:${getTruckColor(obj.truck_id)||'#16a34a'};color:white">${obj._statusNorm}</span>`:`<span class="badge" style="background:#2563eb;color:white">LEAD</span>`;return `<div>${obj.customer_name||obj.leads_name||obj.truck_id} ${badge}<table>${rows}</table></div>`}
 
-    // Haversine distance in km
-    function haversineKm(lat1, lon1, lat2, lon2) {
-      const toRad = d => d * Math.PI / 180;
-      const R = 6371;
-      const dLat = toRad(lat2 - lat1);
-      const dLon = toRad(lon2 - lon1);
-      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
-      return 2 * R * Math.asin(Math.sqrt(a));
-    }
+    function render(){layerCustomers.clearLayers();layerLeads.clearLayers();layerTrucks.clearLayers();layerLines.clearLayers();data.trucks.forEach(t=>{if(t.latitude&&t.longitude){const col=normHex(t.color||'')||'#111827';L.circleMarker([+t.latitude,+t.longitude],{radius:7,color:col,weight:2,fillColor:'#fff',fillOpacity:1}).bindTooltip(popHtml(t,'truck')).addTo(layerTrucks)}});data.customers.forEach(c=>{if(c.latitude&&c.longitude){const col=getTruckColor(c.truck_id)||'#16a34a';L.circleMarker([+c.latitude,+c.longitude],{radius:6,color:col,weight:2,fillColor:col,fillOpacity:.2}).bindTooltip(popHtml(c,'customer')).addTo(layerCustomers)}});}
 
-    // === 3) STATE ===
-    let data = { customers: [], leads: [], trucks: [], settings: [] };
-    let thresholds = { risk: 30, lost: 60 };
+    async function loadAndRender(){const [settings,customers,leads,trucks,sales]=await Promise.all([fetchSheet(SHEETS.settings),fetchSheet(SHEETS.customers),fetchSheet(SHEETS.leads),fetchSheet(SHEETS.trucks),fetchSheet(SHEETS.sales)]);data={settings,customers,leads,trucks,sales};thresholds={risk:30,lost:60};truckColorMap={};trucks.forEach(t=>{const id=(t.truck_id||'').toLowerCase();const col=normHex(t.color||'');if(id&&col)truckColorMap[id]=col});customers.forEach(c=>{const custSales=sales.filter(s=>s.customer_id==c.customer_id);if(custSales.length){const latest=custSales.map(s=>new Date(s.sale_date)).sort((a,b)=>b-a)[0];c.lastest_sales=latest.toISOString().slice(0,10);c._statusNorm=normStatusByDate(latest)}else{c._statusNorm='lost customer'}});map.setView([16.43,103.49],9);render()}
 
-    // === 4) UI Elements ===
-    const branchFilter = document.getElementById('branchFilter');
-    const managerFilter = document.getElementById('managerFilter');
-    const truckFilter = document.getElementById('truckFilter');
-    const statusFilter = document.getElementById('statusFilter');
-    const toggleLeads = document.getElementById('toggleLeads');
-    const toggleNearest = document.getElementById('toggleNearest');
-
-    document.getElementById('btnRefresh').onclick = () => loadAndRender(true);
-    document.getElementById('btnReset').onclick = () => {
-      branchFilter.value = '';
-      managerFilter.value = '';
-      truckFilter.value = '';
-      statusFilter.value = '';
-      toggleLeads.checked = true;
-      toggleNearest.checked = true;
-      render();
-    };
-
-    [branchFilter, managerFilter, truckFilter, statusFilter, toggleLeads, toggleNearest]
-      .forEach(el => el.addEventListener('change', render));
-
-    function setSummary({customers, leads}) {
-      const sumCustomers = customers.length;
-      const sumLeads = leads.length;
-      const active = customers.filter(c => (c._statusNorm||'') === 'active').length;
-      const risky = customers.filter(c => (c._statusNorm||'') === 'risky to lost').length;
-      const lost = customers.filter(c => (c._statusNorm||'') === 'lost customer').length;
-      document.getElementById('sumCustomers').textContent = sumCustomers;
-      document.getElementById('sumLeads').textContent = sumLeads;
-      document.getElementById('sumActive').textContent = active;
-      document.getElementById('sumRisky').textContent = risky;
-      document.getElementById('sumLost').textContent = lost;
-    }
-
-    function normStatusByDate(lastDateStr) {
-      if (!lastDateStr) return 'lost customer';
-      const d = new Date(lastDateStr);
-      if (isNaN(d)) return 'lost customer';
-      const diffDays = Math.floor((Date.now() - d.getTime())/86400000);
-      if (diffDays > thresholds.lost) return 'lost customer';
-      if (diffDays > thresholds.risk) return 'risky to lost';
-      return 'active';
-    }
-
-    function uniqueSorted(arr) {
-      return [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b, 'th'));
-    }
-
-    function buildFilters() {
-      const branches = uniqueSorted([
-        ...data.customers.map(c => c.branch),
-        ...data.leads.map(l => l.branch)
-      ]);
-      const managers = uniqueSorted([
-        ...data.customers.map(c => c.manager_incharge),
-        ...data.trucks.map(t => t.manager_incharge)
-      ]);
-      const trucks = uniqueSorted(data.trucks.map(t => t.truck_id));
-
-      function setOptions(sel, options, withAll=true) {
-        sel.innerHTML = '';
-        if (withAll) sel.append(new Option('ทั้งหมด', ''));
-        options.forEach(o => sel.append(new Option(o, o)));
-      }
-      setOptions(branchFilter, branches);
-      setOptions(managerFilter, managers);
-      setOptions(truckFilter, trucks);
-    }
-
-    function passFilters(item) {
-      if (branchFilter.value && (item.branch||'') !== branchFilter.value) return false;
-      if (managerFilter.value && (item.manager_incharge||'') !== managerFilter.value) return false;
-      if (truckFilter.value && (item.truck_id||'') !== truckFilter.value && (item.nearest_truck_id||'') !== truckFilter.value) return false;
-      if (statusFilter.value && (item._statusNorm||'') !== statusFilter.value) return false;
-      return true;
-    }
-
-    function popHtml(obj, type) {
-      const rows = Object.entries(obj)
-        .filter(([k,v]) => !k.startsWith('_') && v !== '' && v !== null && v !== undefined)
-        .map(([k,v]) => `<tr><td class="pr-2 text-gray-500">${k}</td><td class="font-semibold">${v}</td></tr>`)
-        .join('');
-      const badge = type === 'customer' ? `<span class="badge" style="background:${colorForStatus(obj._statusNorm)};color:white">${obj._statusNorm}</span>`
-                                         : `<span class="badge" style="background:${colors.lead};color:white">LEAD</span>`;
-      return `<div class="text-sm">
-        <div class="mb-1 font-bold">${obj.customer_name || obj.leads_name || obj.truck_id} ${badge}</div>
-        <table class="text-xs">${rows}</table>
-      </div>`;
-    }
-
-    function render() {
-      layerCustomers.clearLayers();
-      layerLeads.clearLayers();
-      layerTrucks.clearLayers();
-      layerLines.clearLayers();
-
-      const cust = data.customers.filter(passFilters);
-      const leads = toggleLeads.checked ? data.leads.filter(passFilters) : [];
-
-      // Trucks
-      data.trucks.forEach(t => {
-        const lat = parseFloat(t.latitude || t.lat || t.lattitude);
-        const lng = parseFloat(t.longitude || t.lng || t.longtitude || t.lon);
-        if (!isFinite(lat) || !isFinite(lng)) return;
-        const m = L.circleMarker([lat, lng], { radius: 7, color: colors.truck, weight: 2, fillColor: '#fff', fillOpacity: 1 })
-          .bindTooltip(popHtml(t, 'truck'), { direction:'top', className:'my', sticky:true });
-        m.addTo(layerTrucks);
-      });
-
-      // Customers
-      cust.forEach(c => {
-        const lat = parseFloat(c.latitude || c.lat || c.lattitude);
-        const lng = parseFloat(c.longitude || c.lng || c.longtitude || c.lon);
-        if (!isFinite(lat) || !isFinite(lng)) return;
-        const col = colorForStatus(c._statusNorm);
-        const m = L.circleMarker([lat, lng], { radius: 6, color: col, weight: 2, fillColor: col, fillOpacity: .15 })
-          .bindTooltip(popHtml(c, 'customer'), { direction:'top', className:'my', sticky:true });
-        m.addTo(layerCustomers);
-      });
-
-      // Leads & nearest truck lines
-      leads.forEach(l => {
-        const lat = parseFloat(l.latitude || l.lat || l.lattitude);
-        const lng = parseFloat(l.longitude || l.lng || l.longtitude || l.lon);
-        if (!isFinite(lat) || !isFinite(lng)) return;
-        let nearest = null;
-        if (toggleNearest.checked) {
-          let best = { d: Infinity, t: null };
-          data.trucks.forEach(t => {
-            const tlat = parseFloat(t.latitude || t.lat || t.lattitude);
-            const tlng = parseFloat(t.longitude || t.lng || t.longtitude || t.lon);
-            if (!isFinite(tlat) || !isFinite(tlng)) return;
-            const d = haversineKm(lat, lng, tlat, tlng);
-            if (d < best.d) best = { d, t };
-          });
-          nearest = best.t;
-          l._nearest_calc = nearest ? nearest.truck_id : '';
-          l._nearest_km = nearest ? best.d.toFixed(2) : '';
-        }
-        const marker = L.circleMarker([lat, lng], { radius: 6, color: colors.lead, weight: 2, fillColor: colors.lead, fillOpacity: .15 })
-          .bindTooltip(popHtml(l, 'lead'), { direction:'top', className:'my', sticky:true })
-          .addTo(layerLeads);
-        if (nearest) {
-          const tlat = parseFloat(nearest.latitude || nearest.lat || nearest.lattitude);
-          const tlng = parseFloat(nearest.longitude || nearest.lng || nearest.longtitude || nearest.lon);
-          L.polyline([[lat,lng],[tlat,tlng]], { color: '#64748b', weight: 1.5, dashArray: '4 4' }).addTo(layerLines);
-        }
-      });
-
-      // Fit bounds
-      const all = [];
-      layerCustomers.eachLayer(l => all.push(l.getLatLng()));
-      layerLeads.eachLayer(l => all.push(l.getLatLng()));
-      layerTrucks.eachLayer(l => all.push(l.getLatLng()));
-      if (all.length) {
-        map.fitBounds(L.latLngBounds(all), { padding: [60, 60] });
-      }
-
-      setSummary({ customers: cust, leads });
-    }
-
-    async function loadAndRender(force = false) {
-      try {
-        const [settings, customers, leads, trucks] = await Promise.all([
-          fetchSheet(SHEETS.settings),
-          fetchSheet(SHEETS.customers),
-          fetchSheet(SHEETS.leads),
-          fetchSheet(SHEETS.trucks)
-        ]);
-        data.settings = settings;
-        data.customers = customers.map(c => ({ ...c }));
-        data.leads = leads.map(l => ({ ...l }));
-        data.trucks = trucks.map(t => ({ ...t }));
-
-        // Thresholds & default view
-        const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase() === key) || {}).value;
-        const centerLat = parseFloat(findVal('CENTER_LAT') || 16.43);
-        const centerLng = parseFloat(findVal('CENTER_LNG') || 103.49);
-        const zoom = parseInt(findVal('ZOOM') || 9);
-        thresholds.risk = parseInt(findVal('THRESHOLD_RISK_DAYS') || 30);
-        thresholds.lost = parseInt(findVal('THRESHOLD_LOST_DAYS') || 60);
-
-        map.setView([centerLat, centerLng], zoom);
-
-        // Normalize statuses for customers if not explicitly set
-        data.customers.forEach(c => {
-          const last = c.lastest_sales || c.latest_sales || c.last_sale || c.lastest_sales_date;
-          const sFromDate = normStatusByDate(last);
-          const explicit = (c.status||'').toString().trim();
-          c._statusNorm = explicit ? explicit.toLowerCase() : sFromDate;
-        });
-
-        buildFilters();
-        render();
-      } catch (e) {
-        console.error(e);
-        alert('โหลดข้อมูลจาก Google Sheets ไม่สำเร็จ\nตรวจสอบ SHEET_ID, สิทธิ์การแชร์ และชื่อชีทให้ถูกต้อง');
-      }
-    }
-
-    loadAndRender();
-
-    // Auto-refresh ทุก 5 นาที (300000 ms)
-    setInterval(() => loadAndRender(), 300000);
+    loadAndRender();setInterval(loadAndRender,300000);
   </script>
 </body>
 </html>
