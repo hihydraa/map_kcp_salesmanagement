@@ -209,11 +209,23 @@
         // truck color map
         truckColorMap={}; trucks.forEach(t=>{const id=(t.truck_id||'').toString().trim().toLowerCase(); const col=normHex(t.color||''); if(id&&/^#?[0-9A-Fa-f]{6}$/.test(col.replace('#',''))) truckColorMap[id]=col.startsWith('#')?col:'#'+col;});
 
-        // enrich customers with latest sales & status
+        // enrich customers with latest sales & status (prefer sheet values if present)
         const salesByCust = sales.reduce((acc,row)=>{const id=row.customer_id; (acc[id]=acc[id]||[]).push(row); return acc;},{});
-        data.customers = customers.map(c=>{const arr=salesByCust[c.customer_id]||[]; let latest=null; if(arr.length){ latest = arr.map(r=>parseSaleDate(r.sale_date)).filter(Boolean).sort((a,b)=>b-a)[0]; }
-          const lastStr = latest? latest.toISOString().slice(0,10): '';
-          return {...c, lastest_sales: c.lastest_sales || lastStr, _statusNorm: normStatusByDate(latest||c.lastest_sales)};
+        data.customers = customers.map(c=>{
+          // 1) latest sale: prefer sheet Customers.lastest_sales, else compute from lastest_sales tab
+          let lastFromSheet = c.lastest_sales || c.latest_sales || c.last_sale || '';
+          if(!lastFromSheet){
+            const arr = salesByCust[c.customer_id]||[];
+            if(arr.length){
+              const latest = arr.map(r=>parseSaleDate(r.sale_date)).filter(Boolean).sort((a,b)=>b-a)[0];
+              if(latest) lastFromSheet = latest.toISOString().slice(0,10);
+            }
+          }
+          // 2) status: prefer Customers.status, else derive from date thresholds
+          const explicitStatus = (c.status||'').toString().trim().toLowerCase();
+          const derivedStatus = normStatusByDate(lastFromSheet);
+          const statusFinal = explicitStatus || derivedStatus;
+          return { ...c, lastest_sales: lastFromSheet, _statusNorm: statusFinal };
         });
 
         buildFilters();
