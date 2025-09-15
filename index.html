@@ -92,27 +92,68 @@
       return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
     }
 
+    // --- Helpers ---
     const map = L.map('map');
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
-    const layerCustomers=L.layerGroup().addTo(map),layerLeads=L.layerGroup().addTo(map),layerTrucks=L.layerGroup().addTo(map);
+    const layerCustomers=L.layerGroup().addTo(map),layerLeads=L.layerGroup().addTo(map),layerTrucks=L.layerGroup().addTo(map),layerLines=L.layerGroup().addTo(map);
 
     let data={customers:[],leads:[],trucks:[],settings:[]};
     let truckColorMap={};
+
     function normHex(c){if(!c)return"";c=String(c).trim();return c.startsWith('#')?c:'#'+c}
     function getTruckColor(id){if(!id)return"";return truckColorMap[String(id).trim().toLowerCase()]||""}
+    function uniqueSorted(arr){ return [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th')); }
+    function gmapsUrl(lat,lng){ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lat+","+lng)}`; }
+    function haversineKm(lat1,lon1,lat2,lon2){ const R=6371,toRad=d=>d*Math.PI/180; const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1); const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(a)); }
+
+    function buildFilters(){
+      const setOpts=(el,opts)=>{ el.innerHTML=''; el.append(new Option('ทั้งหมด','')); opts.forEach(o=>el.append(new Option(o,o))); };
+      setOpts(document.getElementById('branchFilter'), uniqueSorted([ ...data.customers.map(c=>c.branch), ...data.leads.map(l=>l.branch) ]));
+      setOpts(document.getElementById('managerFilter'), uniqueSorted([ ...data.customers.map(c=>c.manager_incharge), ...data.trucks.map(t=>t.manager_incharge) ]));
+      setOpts(document.getElementById('truckFilter'), uniqueSorted(data.trucks.map(t=>t.truck_id)));
+    }
+
+    function passFilters(item){
+      const b=document.getElementById('branchFilter').value;
+      const m=document.getElementById('managerFilter').value;
+      const t=document.getElementById('truckFilter').value;
+      const s=document.getElementById('statusFilter').value;
+      if(b && (item.branch||'')!==b) return false;
+      if(m && (item.manager_incharge||'')!==m) return false;
+      if(t && (item.truck_id||item.nearest_truck_id||'')!==t) return false;
+      if(s && (item.status||item._statusNorm||'')!==s) return false;
+      return true;
+    }
 
     function popHtml(obj,type){
-      const rows=Object.entries(obj).filter(([k,v])=>!k.startsWith('_')&&v!==""&&v!=null).map(([k,v])=>`<tr><td class="pr-2 text-gray-500">${k}</td><td class="font-semibold">${v}</td></tr>`).join('');
-      const badge= type==='customer'?`<span class="badge" style="background:${getTruckColor(obj.truck_id)||'#16a34a'};color:white">${obj.status||''}</span>`:`<span class="badge" style="background:#2563eb;color:white">LEAD</span>`;
-      return `<div class="text-sm"><div class="mb-1 font-bold">${obj.customer_name||obj.leads_name||obj.truck_id} ${badge}</div><table class="text-xs">${rows}</table></div>`;
+      const rows=Object.entries(obj)
+        .filter(([k,v])=>!k.startsWith('_')&&v!==""&&v!=null)
+        .map(([k,v])=>`<tr><td class="pr-2 text-gray-500">${k}</td><td class="font-semibold">${v}</td></tr>`)
+        .join('');
+      const badge= type==='customer'
+        ? `<span class="badge" style="background:${getTruckColor(obj.truck_id)||'#16a34a'};color:white">${obj.status||obj._statusNorm||''}</span>`
+        : `<span class="badge" style="background:#2563eb;color:white">LEAD</span>`;
+
+      let mapsLink = '';
+      const lat = parseFloat(obj.latitude||obj.lat||obj.lattitude);
+      const lng = parseFloat(obj.longitude||obj.lng||obj.longtitude||obj.lon);
+      if(isFinite(lat) && isFinite(lng)){
+        mapsLink = `<div class="mt-2"><a href="${gmapsUrl(lat,lng)}" target="_blank" rel="noopener" class="text-xs font-semibold text-blue-600 underline">เปิดใน Google Maps</a></div>`;
+      }
+
+      return `<div class="text-sm">
+        <div class="mb-1 font-bold">${obj.customer_name||obj.leads_name||obj.truck_id} ${badge}</div>
+        <table class="text-xs">${rows}</table>
+        ${mapsLink}
+      </div>`;
     }
 
     function setSummary({customers, leads}){
       const sumCustomers = customers.length;
       const sumLeads = leads.length;
-      const active = customers.filter(c => (c.status||'')==='active').length;
-      const risky = customers.filter(c => (c.status||'')==='risky to lost').length;
-      const lost  = customers.filter(c => (c.status||'')==='lost customer').length;
+      const active = customers.filter(c => (c.status||c._statusNorm||'')==='active').length;
+      const risky = customers.filter(c => (c.status||c._statusNorm||'')==='risky to lost').length;
+      const lost  = customers.filter(c => (c.status||c._statusNorm||'')==='lost customer').length;
       document.getElementById('sumCustomers').textContent = sumCustomers;
       document.getElementById('sumLeads').textContent = sumLeads;
       document.getElementById('sumActive').textContent = active;
@@ -121,11 +162,15 @@
     }
 
     function render(){
-      layerCustomers.clearLayers();layerLeads.clearLayers();layerTrucks.clearLayers();
+      layerCustomers.clearLayers();layerLeads.clearLayers();layerTrucks.clearLayers();layerLines.clearLayers();
+
       // Trucks
       data.trucks.forEach(t=>{const lat=+ (t.latitude||t.lat||t.lattitude); const lng=+ (t.longitude||t.lng||t.longtitude||t.lon); if(!isFinite(lat)||!isFinite(lng)) return; const col=normHex(t.color||'')||'#111827'; L.circleMarker([lat,lng],{radius:7,color:col,weight:2,fillColor:'#fff',fillOpacity:1}).bindTooltip(popHtml(t,'truck'),{className:'my',sticky:true}).addTo(layerTrucks)});
+
+      const cust = data.customers.filter(passFilters);
+      const leads = (document.getElementById('toggleLeads').checked? data.leads: []).filter(passFilters);
+
       // Customers
-      const cust = data.customers;
       cust.forEach(c=>{ 
         const lat = + (c.latitude||c.lat||c.lattitude); 
         const lng = + (c.longitude||c.lng||c.longtitude||c.lon); 
@@ -134,11 +179,29 @@
         const m = L.circleMarker([lat,lng],{radius:6,color:col,weight:2,fillColor:col,fillOpacity:.2})
           .bindTooltip(popHtml(c,'customer'),{className:'my',sticky:true})
           .addTo(layerCustomers);
-        m.on('click',()=>{ window.open(gmapsUrl(lat,lng,c.customer_name||c.customer_id),'_blank'); });
+        m.on('click',()=>{ window.open(gmapsUrl(lat,lng),'_blank'); });
       });
+
+      // Leads + nearest truck line (optional)
+      const wantNearest = document.getElementById('toggleNearest').checked;
+      leads.forEach(l=>{
+        const lat = + (l.latitude||l.lat||l.lattitude); 
+        const lng = + (l.longitude||l.lng||l.longtitude||l.lon); 
+        if(!isFinite(lat)||!isFinite(lng)) return; 
+        const mk = L.circleMarker([lat,lng],{radius:6,color:'#2563eb',weight:2,fillColor:'#2563eb',fillOpacity:.2})
+          .bindTooltip(popHtml(l,'lead'),{className:'my',sticky:true})
+          .addTo(layerLeads);
+        mk.on('click',()=>{ window.open(gmapsUrl(lat,lng),'_blank'); });
+        if(wantNearest){
+          let best={d:Infinity,t:null};
+          data.trucks.forEach(t=>{const tlat=+(t.latitude||t.lat||t.lattitude); const tlng=+(t.longitude||t.lng||t.longtitude||t.lon); if(!isFinite(tlat)||!isFinite(tlng)) return; const d=haversineKm(lat,lng,tlat,tlng); if(d<best.d) best={d,t};});
+          if(best.t){ const tlat=+(best.t.latitude||best.t.lat||best.t.lattitude); const tlng=+(best.t.longitude||best.t.lng||best.t.longtitude||best.t.lon); L.polyline([[lat,lng],[tlat,tlng]],{color:'#64748b',weight:1.5,dashArray:'4 4'}).addTo(layerLines); }
+        }
+      });
+
       // Fit view
-      const all=[]; layerCustomers.eachLayer(l=>all.push(l.getLatLng())); layerTrucks.eachLayer(l=>all.push(l.getLatLng())); if(all.length){ map.fitBounds(L.latLngBounds(all),{padding:[60,60]}); }
-      setSummary({customers:cust,leads:data.leads});
+      const all=[]; layerCustomers.eachLayer(l=>all.push(l.getLatLng())); layerLeads.eachLayer(l=>all.push(l.getLatLng())); layerTrucks.eachLayer(l=>all.push(l.getLatLng())); if(all.length){ map.fitBounds(L.latLngBounds(all),{padding:[60,60]}); }
+      setSummary({customers:cust,leads});
     }
 
     async function loadAndRender(){
@@ -148,15 +211,23 @@
           fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
         ]);
         data={settings,customers,leads,trucks};
+        // Center from Settings
+        const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase()===key) || {}).value;
+        const cLat = parseFloat(findVal('CENTER_LAT')||16.43), cLng=parseFloat(findVal('CENTER_LNG')||103.49), zoom=parseInt(findVal('ZOOM')||9);
+        map.setView([cLat,cLng], zoom);
+        // Truck color map
         truckColorMap={}; trucks.forEach(t=>{const id=(t.truck_id||'').toString().trim().toLowerCase(); const col=normHex(t.color||''); if(id&&/^#?[0-9A-Fa-f]{6}$/.test(col.replace('#',''))) truckColorMap[id]=col.startsWith('#')?col:'#'+col;});
+        buildFilters();
         render();
       }catch(err){
         showError(err.message || String(err));
       }
     }
 
+    // UI events
     document.getElementById('btnRefresh').onclick = ()=>loadAndRender(true);
     document.getElementById('btnReset').onclick = ()=>{ document.getElementById('branchFilter').value=''; document.getElementById('managerFilter').value=''; document.getElementById('truckFilter').value=''; document.getElementById('statusFilter').value=''; render(); };
+    ['branchFilter','managerFilter','truckFilter','statusFilter','toggleLeads','toggleNearest'].forEach(id=> document.getElementById(id).addEventListener('change',render));
 
     loadAndRender();
     setInterval(loadAndRender,300000);
