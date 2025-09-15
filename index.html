@@ -98,7 +98,7 @@
     const gmapsUrl = (lat,lng) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lat+","+lng)}`;
     const haversineKm=(a,b,c,d)=>{const R=6371,toRad=x=>x*Math.PI/180;const dLat=toRad(c-a),dLon=toRad(d-b);const h=Math.sin(dLat/2)**2+Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(h));};
 
-    // จัดลำดับฟิลด์ (บังคับให้มี lastest_sales + status)
+    // จัดลำดับฟิลด์ (บังคับให้มี lastest_sales + status) และ **ไม่**ใส่ lat/long
     function buildRowsHtml(obj, fields){
       return fields
         .filter(k => obj[k] !== undefined && obj[k] !== null && obj[k] !== "")
@@ -106,11 +106,11 @@
         .join('');
     }
 
-    // Tooltip (hover only)
+    // Tooltip (hover only) — ไม่มี lat/long
     function tooltipHtml(obj,type){
       const fields = (type==='customer')
-        ? ['customer_id','customer_name','lastest_sales','status','latitude','longitude','branch','truck_id','manager_incharge','notes']
-        : ['leads_name','status','province','district','nearest_truck_id','saler','latitude','longitude','branch','notes'];
+        ? ['customer_id','customer_name','lastest_sales','status','branch','truck_id','manager_incharge','notes']
+        : ['leads_name','status','province','district','nearest_truck_id','saler','branch','notes'];
       const rows = buildRowsHtml(obj, fields);
       const badge= type==='customer'
         ? `<span class="badge" style="background:${getTruckColor(obj.truck_id)||'#16a34a'};color:white">${obj.status||obj._statusNorm||''}</span>`
@@ -120,13 +120,14 @@
         <table class="text-xs">${rows}</table>
       </div>`;
     }
-    // Popup (click to pin) — ใส่ปุ่ม Google Maps
+
+    // Popup (click to pin) — ไม่มี lat/long + ปุ่ม Google Maps
     function popupHtml(obj,type){
       const lat = parseFloat(obj.latitude||obj.lat||obj.lattitude);
       const lng = parseFloat(obj.longitude||obj.lng||obj.longtitude||obj.lon);
       const fields = (type==='customer')
-        ? ['customer_id','customer_name','lastest_sales','status','latitude','longitude','branch','truck_id','manager_incharge','notes']
-        : ['leads_name','status','province','district','nearest_truck_id','saler','latitude','longitude','branch','notes'];
+        ? ['customer_id','customer_name','lastest_sales','status','branch','truck_id','manager_incharge','notes']
+        : ['leads_name','status','province','district','nearest_truck_id','saler','branch','notes'];
       const rows = buildRowsHtml(obj, fields);
       const gmBtn = (isFinite(lat)&&isFinite(lng))
         ? `<a href="${gmapsUrl(lat,lng)}" target="_blank" rel="noopener" class="mt-2 inline-block text-xs font-semibold text-blue-600 underline">เปิดใน Google Maps</a>`:'';
@@ -137,12 +138,6 @@
       </div>`;
     }
 
-    function buildFilters(){
-      const setOpts=(el,opts)=>{ el.innerHTML=''; el.append(new Option('ทั้งหมด','')); opts.forEach(o=>el.append(new Option(o,o))); };
-      setOpts(document.getElementById('branchFilter'), uniqueSorted([ ...data.customers.map(c=>c.branch), ...data.leads.map(l=>l.branch) ]));
-      setOpts(document.getElementById('managerFilter'), uniqueSorted([ ...data.customers.map(c=>c.manager_incharge), ...data.trucks.map(t=>t.manager_incharge) ]));
-      setOpts(document.getElementById('truckFilter'), uniqueSorted(data.trucks.map(t=>t.truck_id)));
-    }
     function passFilters(item){
       const b=branchFilter.value, m=managerFilter.value, t=truckFilter.value, s=statusFilter.value;
       if(b && (item.branch||'')!==b) return false;
@@ -162,13 +157,13 @@
     function render(){
       layerCustomers.clearLayers();layerLeads.clearLayers();layerTrucks.clearLayers();layerLines.clearLayers();
 
-      // Trucks
+      // Trucks (ไว้ดูตำแหน่งรถ, tooltip เท่านั้น)
       data.trucks.forEach(t=>{
         const lat=+ (t.latitude||t.lat||t.lattitude), lng=+ (t.longitude||t.lng||t.longtitude||t.lon);
         if(!isFinite(lat)||!isFinite(lng)) return;
         const col=normHex(t.color||'')||'#111827';
         L.circleMarker([lat,lng],{radius:7,color:col,weight:2,fillColor:'#fff',fillOpacity:1})
-          .bindTooltip(tooltipHtml(t,'truck'),{className:'my',sticky:true})
+          .bindTooltip(`<div class="text-sm font-bold">${t.truck_id}</div>`,{className:'my',sticky:true})
           .addTo(layerTrucks);
       });
 
@@ -224,13 +219,13 @@
           fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
         ]);
         data={settings,customers,leads,trucks};
-        // Center from Settings
+        // Center from Settings (fallback หากไม่ตั้งค่า)
         const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase()===key) || {}).value;
         const cLat = parseFloat(findVal('CENTER_LAT')||16.43), cLng=parseFloat(findVal('CENTER_LNG')||103.49), zoom=parseInt(findVal('ZOOM')||9);
         map.setView([cLat,cLng], zoom);
         // Truck colors
         truckColorMap={}; trucks.forEach(t=>{const id=(t.truck_id||'').toString().trim().toLowerCase(); const col=normHex(t.color||''); if(id&&/^#?[0-9A-Fa-f]{6}$/.test(col.replace('#',''))) truckColorMap[id]=col.startsWith('#')?col:'#'+col;});
-        // Filters
+        // Build filters (จากข้อมูลล่าสุด)
         const setOpts=(el,opts)=>{ el.innerHTML=''; el.append(new Option('ทั้งหมด','')); opts.forEach(o=>el.append(new Option(o,o))); };
         setOpts(branchFilter, uniqueSorted([ ...customers.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
         setOpts(managerFilter, uniqueSorted([ ...customers.map(c=>c.manager_incharge), ...trucks.map(t=>t.manager_incharge) ]));
