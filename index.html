@@ -98,11 +98,20 @@
     const gmapsUrl = (lat,lng) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lat+","+lng)}`;
     const haversineKm=(a,b,c,d)=>{const R=6371,toRad=x=>x*Math.PI/180;const dLat=toRad(c-a),dLon=toRad(d-b);const h=Math.sin(dLat/2)**2+Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(h));};
 
+    // จัดลำดับฟิลด์ (บังคับให้มี lastest_sales + status)
+    function buildRowsHtml(obj, fields){
+      return fields
+        .filter(k => obj[k] !== undefined && obj[k] !== null && obj[k] !== "")
+        .map(k => `<tr><td class="pr-2 text-gray-500">${k}</td><td class="font-semibold">${obj[k]}</td></tr>`)
+        .join('');
+    }
+
     // Tooltip (hover only)
     function tooltipHtml(obj,type){
-      const rows=Object.entries(obj)
-        .filter(([k,v])=>!k.startsWith('_')&&v!==""&&v!=null)
-        .map(([k,v])=>`<tr><td class="pr-2 text-gray-500">${k}</td><td class="font-semibold">${v}</td></tr>`).join('');
+      const fields = (type==='customer')
+        ? ['customer_id','customer_name','lastest_sales','status','latitude','longitude','branch','truck_id','manager_incharge','notes']
+        : ['leads_name','status','province','district','nearest_truck_id','saler','latitude','longitude','branch','notes'];
+      const rows = buildRowsHtml(obj, fields);
       const badge= type==='customer'
         ? `<span class="badge" style="background:${getTruckColor(obj.truck_id)||'#16a34a'};color:white">${obj.status||obj._statusNorm||''}</span>`
         : `<span class="badge" style="background:#2563eb;color:white">LEAD</span>`;
@@ -111,13 +120,14 @@
         <table class="text-xs">${rows}</table>
       </div>`;
     }
-    // Popup (click to pin)
-    function popupHtml(obj){
+    // Popup (click to pin) — ใส่ปุ่ม Google Maps
+    function popupHtml(obj,type){
       const lat = parseFloat(obj.latitude||obj.lat||obj.lattitude);
       const lng = parseFloat(obj.longitude||obj.lng||obj.longtitude||obj.lon);
-      const rows=Object.entries(obj)
-        .filter(([k,v])=>!k.startsWith('_')&&v!==""&&v!=null)
-        .map(([k,v])=>`<tr><td class="pr-2 text-gray-500">${k}</td><td class="font-semibold">${v}</td></tr>`).join('');
+      const fields = (type==='customer')
+        ? ['customer_id','customer_name','lastest_sales','status','latitude','longitude','branch','truck_id','manager_incharge','notes']
+        : ['leads_name','status','province','district','nearest_truck_id','saler','latitude','longitude','branch','notes'];
+      const rows = buildRowsHtml(obj, fields);
       const gmBtn = (isFinite(lat)&&isFinite(lng))
         ? `<a href="${gmapsUrl(lat,lng)}" target="_blank" rel="noopener" class="mt-2 inline-block text-xs font-semibold text-blue-600 underline">เปิดใน Google Maps</a>`:'';
       return `<div class="text-sm">
@@ -173,7 +183,7 @@
         const m = L.circleMarker([lat,lng],{radius:6,color:col,weight:2,fillColor:col,fillOpacity:.2})
           .bindTooltip(tooltipHtml(c,'customer'),{className:'my',sticky:true})
           .addTo(layerCustomers);
-        m.on('click',()=>{ m.bindPopup(popupHtml(c), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
+        m.on('click',()=>{ m.bindPopup(popupHtml(c,'customer'), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
       });
 
       // Leads (hover -> tooltip, click -> popup) + optional nearest line
@@ -184,7 +194,7 @@
         const mk = L.circleMarker([lat,lng],{radius:6,color:'#2563eb',weight:2,fillColor:'#2563eb',fillOpacity:.2})
           .bindTooltip(tooltipHtml(l,'lead'),{className:'my',sticky:true})
           .addTo(layerLeads);
-        mk.on('click',()=>{ mk.bindPopup(popupHtml(l), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
+        mk.on('click',()=>{ mk.bindPopup(popupHtml(l,'lead'), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
 
         if(wantNearest){
           let best={d:Infinity,t:null};
