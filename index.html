@@ -125,26 +125,38 @@
       return true;
     }
 
-    function popHtml(obj,type){
+    function gmapsUrl(lat,lng){ return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lat+","+lng)}`; }
+
+    // HTML สำหรับทูลทิป (hover) — ไม่มีปุ่ม Google Maps
+    function tooltipHtml(obj,type){
       const rows=Object.entries(obj)
         .filter(([k,v])=>!k.startsWith('_')&&v!==""&&v!=null)
-        .map(([k,v])=>`<tr><td class="pr-2 text-gray-500">${k}</td><td class="font-semibold">${v}</td></tr>`)
+        .map(([k,v])=>`<tr><td class=\"pr-2 text-gray-500\">${k}</td><td class=\"font-semibold\">${v}</td></tr>`)
         .join('');
       const badge= type==='customer'
-        ? `<span class="badge" style="background:${getTruckColor(obj.truck_id)||'#16a34a'};color:white">${obj.status||obj._statusNorm||''}</span>`
-        : `<span class="badge" style="background:#2563eb;color:white">LEAD</span>`;
+        ? `<span class=\"badge\" style=\"background:${getTruckColor(obj.truck_id)||'#16a34a'};color:white\">${obj.status||obj._statusNorm||''}</span>`
+        : `<span class=\"badge\" style=\"background:#2563eb;color:white\">LEAD</span>`;
+      return `<div class=\"text-sm\">
+        <div class=\"mb-1 font-bold\">${obj.customer_name||obj.leads_name||obj.truck_id} ${badge}</div>
+        <table class=\"text-xs\">${rows}</table>
+      </div>`;
+    }
 
-      let mapsLink = '';
+    // HTML สำหรับป๊อปอัป (click แล้วค้าง) — ใส่ปุ่ม Google Maps
+    function popupHtml(obj){
       const lat = parseFloat(obj.latitude||obj.lat||obj.lattitude);
       const lng = parseFloat(obj.longitude||obj.lng||obj.longtitude||obj.lon);
-      if(isFinite(lat) && isFinite(lng)){
-        mapsLink = `<div class="mt-2"><a href="${gmapsUrl(lat,lng)}" target="_blank" rel="noopener" class="text-xs font-semibold text-blue-600 underline">เปิดใน Google Maps</a></div>`;
-      }
-
-      return `<div class="text-sm">
-        <div class="mb-1 font-bold">${obj.customer_name||obj.leads_name||obj.truck_id} ${badge}</div>
-        <table class="text-xs">${rows}</table>
-        ${mapsLink}
+      const rows=Object.entries(obj)
+        .filter(([k,v])=>!k.startsWith('_')&&v!==""&&v!=null)
+        .map(([k,v])=>`<tr><td class=\"pr-2 text-gray-500\">${k}</td><td class=\"font-semibold\">${v}</td></tr>`)
+        .join('');
+      const gmBtn = (isFinite(lat)&&isFinite(lng))
+        ? `<a href=\"${gmapsUrl(lat,lng)}\" target=\"_blank\" rel=\"noopener\" class=\"mt-2 inline-block text-xs font-semibold text-blue-600 underline\">เปิดใน Google Maps</a>`
+        : '';
+      return `<div class=\"text-sm\">
+        <div class=\"mb-1 font-bold\">${obj.customer_name||obj.leads_name||obj.truck_id}</div>
+        <table class=\"text-xs\">${rows}</table>
+        ${gmBtn}
       </div>`;
     }
 
@@ -177,9 +189,9 @@
         if(!isFinite(lat)||!isFinite(lng)) return; 
         const col=getTruckColor(c.truck_id)||'#16a34a'; 
         const m = L.circleMarker([lat,lng],{radius:6,color:col,weight:2,fillColor:col,fillOpacity:.2})
-          .bindTooltip(popHtml(c,'customer'),{className:'my',sticky:true})
+          .bindTooltip(tooltipHtml(c,'customer'),{className:'my',sticky:true})
           .addTo(layerCustomers);
-        m.on('click',()=>{ window.open(gmapsUrl(lat,lng),'_blank'); });
+        m.on('click',()=>{ m.bindPopup(popupHtml(c), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
       });
 
       // Leads + nearest truck line (optional)
@@ -189,9 +201,9 @@
         const lng = + (l.longitude||l.lng||l.longtitude||l.lon); 
         if(!isFinite(lat)||!isFinite(lng)) return; 
         const mk = L.circleMarker([lat,lng],{radius:6,color:'#2563eb',weight:2,fillColor:'#2563eb',fillOpacity:.2})
-          .bindTooltip(popHtml(l,'lead'),{className:'my',sticky:true})
+          .bindTooltip(tooltipHtml(l,'lead'),{className:'my',sticky:true})
           .addTo(layerLeads);
-        mk.on('click',()=>{ window.open(gmapsUrl(lat,lng),'_blank'); });
+        mk.on('click',()=>{ mk.bindPopup(popupHtml(l), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
         if(wantNearest){
           let best={d:Infinity,t:null};
           data.trucks.forEach(t=>{const tlat=+(t.latitude||t.lat||t.lattitude); const tlng=+(t.longitude||t.lng||t.longtitude||t.lon); if(!isFinite(tlat)||!isFinite(tlng)) return; const d=haversineKm(lat,lng,tlat,tlng); if(d<best.d) best={d,t};});
