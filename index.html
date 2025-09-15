@@ -79,17 +79,26 @@
       box.classList.remove('hidden');
     }
 
+    // --- GVIZ Fetcher (ทนทาน: รองรับกรณี label ว่าง → ใช้แถวแรกเป็น header) ---
     async function fetchSheet(sheetName) {
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&tq=`;
       const res = await fetch(url, { cache: "no-store" });
       const text = await res.text();
       if(!text.includes('google.visualization')){
-        throw new Error(`โหลดชีท "${sheetName}" ไม่สำเร็จ (อาจเป็นสิทธิ์การเข้าถึงหรือชื่อแท็บไม่ตรง)\nResponse preview: ${text.slice(0,120)}`);
+        throw new Error(`โหลดชีท "${sheetName}" ไม่สำเร็จ (สิทธิ์แชร์/ชื่อแท็บ)\n${text.slice(0,160)}`);
       }
       const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
-      const cols = json.table.cols.map(c => c.label || c.id);
+      const cols = json.table.cols.map(c => (c.label||c.id||'').toString());
       const rows = json.table.rows.map(r => (r.c||[]).map(c => c ? c.v : ""));
-      return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
+
+      // ถ้า label บางช่องว่าง ให้ใช้แถวแรกเป็น header
+      let headers = cols.slice();
+      const needHeadersFromFirstRow = headers.every(h => !h) || headers.some(h => /^col\d+$/i.test(h));
+      if (needHeadersFromFirstRow && rows.length){
+        headers = rows[0].map((v,i)=> (v||`col${i+1}`));
+        return rows.slice(1).map(r => Object.fromEntries(r.map((v,i) => [headers[i], v])));
+      }
+      return rows.map(r => Object.fromEntries(r.map((v,i) => [headers[i] || `col${i+1}`, v])));
     }
 
     const map = L.map('map');
@@ -102,24 +111,14 @@
     function normHex(c){if(!c)return"";c=String(c).trim();return c.startsWith('#')?c:'#'+c}
     function getTruckColor(id){if(!id)return"";return truckColorMap[String(id).trim().toLowerCase()]||""}
 
-    // Parse date in formats like "05/09/2025 8:50" (DD/MM/YYYY HH:mm) or ISO
+    // Parse date in formats like "05/09/2025 8:50" (DD/MM/YYYY HH:mm) or ISO/serial
     function parseSaleDate(s){
       if(!s) return null;
-      if(typeof s === 'number'){ // Google may send as serial date (days since 1899-12-30)
-        const base = new Date(Date.UTC(1899,11,30));
-        const ms = s*86400000; return new Date(base.getTime()+ms);
-      }
+      if(typeof s === 'number'){ const base = new Date(Date.UTC(1899,11,30)); return new Date(base.getTime()+s*86400000); }
       const str = String(s).trim();
-      // Try ISO
-      const dIso = new Date(str);
-      if(!isNaN(dIso)) return dIso;
-      // Try DD/MM/YYYY[ HH:MM]
+      const dIso = new Date(str); if(!isNaN(dIso)) return dIso;
       const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?$/);
-      if(m){
-        const dd=+m[1], mm=+m[2]-1, yyyy=+m[3];
-        const HH=+(m[4]||'0'), MM=+(m[5]||'0');
-        return new Date(yyyy,mm,dd,HH,MM);
-      }
+      if(m){ const dd=+m[1], mm=+m[2]-1, yyyy=+m[3]; const HH=+(m[4]||'0'), MM=+(m[5]||'0'); return new Date(yyyy,mm,dd,HH,MM); }
       return null;
     }
 
@@ -151,16 +150,45 @@
       document.getElementById('sumLost').textContent = lost;
     }
 
+    function uniqueSorted(arr){ return [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th')); }
+    function buildFilters(){
+      const setOpts=(el,opts)=>{ el.innerHTML=''; el.append(new Option('ทั้งหมด','')); opts.forEach(o=>el.append(new Option(o,o))); };
+      setOpts(document.getElementById('branchFilter'), uniqueSorted([ ...data.customers.map(c=>c.branch), ...data.leads.map(l=>l.branch) ]));
+      setOpts(document.getElementById('managerFilter'), uniqueSorted([ ...data.customers.map(c=>c.manager_incharge), ...data.trucks.map(t=>t.manager_incharge) ]));
+      setOpts(document.getElementById('truckFilter'), uniqueSorted(data.trucks.map(t=>t.truck_id)));
+    }
+
+    function passFilters(item){
+      const b=document.getElementById('branchFilter').value;
+      const m=document.getElementById('managerFilter').value;
+      const t=document.getElementById('truckFilter').value;
+      const s=document.getElementById('statusFilter').value;
+      if(b && (item.branch||'')!==b) return false;
+      if(m && (item.manager_incharge||'')!==m) return false;
+      if(t && (item.truck_id||item.nearest_truck_id||'')!==t) return false;
+      if(s && (item._statusNorm||'')!==s) return false;
+      return true;
+    }
+
     function render(){
       layerCustomers.clearLayers();layerLeads.clearLayers();layerTrucks.clearLayers();layerLines.clearLayers();
       // Trucks
-      data.trucks.forEach(t=>{const lat=+ (t.latitude||t.lat||t.lattitude); const lng=+ (t.longitude||t.lng||t.longtitude||t.lon); if(!isFinite(lat)||!isFinite(lng)) return; const col=normHex(t.color||'')||'#111827'; L.circleMarker([lat,lng],{radius:7,color:col,weight:2,fillColor:'#fff',fillOpacity:1}).bindTooltip(popHtml(t,'truck'),{className:'my',sticky:true}).addTo(layerTrucks)});
+      data.trucks.forEach(t=>{const lat=parseFloat(t.latitude||t.lat||t.lattitude); const lng=parseFloat(t.longitude||t.lng||t.longtitude||t.lon); if(!isFinite(lat)||!isFinite(lng)) return; const col=normHex(t.color||'')||'#111827'; L.circleMarker([lat,lng],{radius:7,color:col,weight:2,fillColor:'#fff',fillOpacity:1}).bindTooltip(popHtml(t,'truck'),{className:'my',sticky:true}).addTo(layerTrucks)});
+
+      const cust = data.customers.filter(passFilters);
+      const leads = (document.getElementById('toggleLeads').checked? data.leads: []).filter(passFilters);
+
       // Customers
-      const cust = data.customers;
-      cust.forEach(c=>{const lat=+ (c.latitude||c.lat||c.lattitude); const lng=+ (c.longitude||c.lng||c.longtitude||c.lon); if(!isFinite(lat)||!isFinite(lng)) return; const col=getTruckColor(c.truck_id)||'#16a34a'; L.circleMarker([lat,lng],{radius:6,color:col,weight:2,fillColor:col,fillOpacity:.2}).bindTooltip(popHtml(c,'customer'),{className:'my',sticky:true}).addTo(layerCustomers)});
-      // Fit
-      const all=[]; layerCustomers.eachLayer(l=>all.push(l.getLatLng())); layerTrucks.eachLayer(l=>all.push(l.getLatLng())); if(all.length){ map.fitBounds(L.latLngBounds(all),{padding:[60,60]}); }
-      setSummary({customers:cust,leads:data.leads});
+      cust.forEach(c=>{const lat=parseFloat(c.latitude||c.lat||c.lattitude); const lng=parseFloat(c.longitude||c.lng||c.longtitude||c.lon); if(!isFinite(lat)||!isFinite(lng)) return; const col=getTruckColor(c.truck_id)||'#16a34a'; L.circleMarker([lat,lng],{radius:6,color:col,weight:2,fillColor:col,fillOpacity:.2}).bindTooltip(popHtml(c,'customer'),{className:'my',sticky:true}).addTo(layerCustomers)});
+
+      // Leads + nearest
+      const wantNearest = document.getElementById('toggleNearest').checked;
+      leads.forEach(l=>{const lat=parseFloat(l.latitude||l.lat||l.lattitude); const lng=parseFloat(l.longitude||l.lng||l.longtitude||l.lon); if(!isFinite(lat)||!isFinite(lng)) return; let nearest=null,best={d:Infinity,t:null}; if(wantNearest){ data.trucks.forEach(t=>{const tlat=parseFloat(t.latitude||t.lat||t.lattitude); const tlng=parseFloat(t.longitude||t.lng||t.longtitude||t.lon); if(!isFinite(tlat)||!isFinite(tlng)) return; const d=(()=>{const R=6371, toRad=x=>x*Math.PI/180; const dLat=toRad(tlat-lat), dLon=toRad(tlng-lng); const a=Math.sin(dLat/2)**2 + Math.cos(toRad(lat))*Math.cos(toRad(tlat))*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(a));})(); if(d<best.d) best={d,t}; }); nearest=best.t; l._nearest_calc=nearest?nearest.truck_id:''; l._nearest_km=nearest?best.d.toFixed(2):''; }
+        L.circleMarker([lat,lng],{radius:6,color:'#2563eb',weight:2,fillColor:'#2563eb',fillOpacity:.2}).bindTooltip(popHtml(l,'lead'),{className:'my',sticky:true}).addTo(layerLeads);
+        if(nearest){const tlat=parseFloat(nearest.latitude||nearest.lat||nearest.lattitude); const tlng=parseFloat(nearest.longitude||nearest.lng||nearest.longtitude||nearest.lon); L.polyline([[lat,lng],[tlat,tlng]],{color:'#64748b',weight:1.5,dashArray:'4 4'}).addTo(layerLines);} });
+
+      const all=[]; layerCustomers.eachLayer(l=>all.push(l.getLatLng())); layerLeads.eachLayer(l=>all.push(l.getLatLng())); layerTrucks.eachLayer(l=>all.push(l.getLatLng())); if(all.length){ map.fitBounds(L.latLngBounds(all),{padding:[60,60]}); }
+      setSummary({customers:cust,leads});
     }
 
     async function loadAndRender(){
@@ -170,20 +198,25 @@
           fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks), fetchSheet(SHEETS.sales)
         ]);
         data={settings,customers,leads,trucks,sales};
+
         // thresholds + center
         const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase()===key) || {}).value;
         thresholds.risk = parseInt(findVal('THRESHOLD_RISK_DAYS')||30);
         thresholds.lost = parseInt(findVal('THRESHOLD_LOST_DAYS')||60);
         const cLat = parseFloat(findVal('CENTER_LAT')||16.43), cLng=parseFloat(findVal('CENTER_LNG')||103.49), zoom=parseInt(findVal('ZOOM')||9);
         map.setView([cLat,cLng], zoom);
+
         // truck color map
         truckColorMap={}; trucks.forEach(t=>{const id=(t.truck_id||'').toString().trim().toLowerCase(); const col=normHex(t.color||''); if(id&&/^#?[0-9A-Fa-f]{6}$/.test(col.replace('#',''))) truckColorMap[id]=col.startsWith('#')?col:'#'+col;});
+
         // enrich customers with latest sales & status
         const salesByCust = sales.reduce((acc,row)=>{const id=row.customer_id; (acc[id]=acc[id]||[]).push(row); return acc;},{});
         data.customers = customers.map(c=>{const arr=salesByCust[c.customer_id]||[]; let latest=null; if(arr.length){ latest = arr.map(r=>parseSaleDate(r.sale_date)).filter(Boolean).sort((a,b)=>b-a)[0]; }
           const lastStr = latest? latest.toISOString().slice(0,10): '';
           return {...c, lastest_sales: c.lastest_sales || lastStr, _statusNorm: normStatusByDate(latest||c.lastest_sales)};
         });
+
+        buildFilters();
         render();
       }catch(err){
         showError(err.message || String(err));
@@ -192,6 +225,13 @@
 
     document.getElementById('btnRefresh').onclick = ()=>loadAndRender(true);
     document.getElementById('btnReset').onclick = ()=>{ document.getElementById('branchFilter').value=''; document.getElementById('managerFilter').value=''; document.getElementById('truckFilter').value=''; document.getElementById('statusFilter').value=''; render(); };
+
+    document.getElementById('branchFilter').addEventListener('change',render);
+    document.getElementById('managerFilter').addEventListener('change',render);
+    document.getElementById('truckFilter').addEventListener('change',render);
+    document.getElementById('statusFilter').addEventListener('change',render);
+    document.getElementById('toggleLeads').addEventListener('change',render);
+    document.getElementById('toggleNearest').addEventListener('change',render);
 
     loadAndRender();
     setInterval(loadAndRender,300000);
