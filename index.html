@@ -93,7 +93,7 @@
     }
 
     // ---- Map + helpers ----
-    const map = L.map('map');  // default: map option closePopupOnClick = true (คลิกพื้นหลังจะปิด popup)
+    const map = L.map('map'); // closePopupOnClick=true by default
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
     const layerCustomers=L.layerGroup().addTo(map),layerLeads=L.layerGroup().addTo(map),layerTrucks=L.layerGroup().addTo(map),layerLines=L.layerGroup().addTo(map);
 
@@ -158,10 +158,23 @@
       return true;
     }
 
+    function setSummary({customers, leads}){
+      const sumCustomers = customers.length;
+      const sumLeads = leads.length;
+      const active = customers.filter(c => (c.status||c._statusNorm||'')==='active').length;
+      const risky = customers.filter(c => (c.status||c._statusNorm||'')==='risky to lost').length;
+      const lost  = customers.filter(c => (c.status||c._statusNorm||'')==='lost customer').length;
+      document.getElementById('sumCustomers').textContent = sumCustomers;
+      document.getElementById('sumLeads').textContent = sumLeads;
+      document.getElementById('sumActive').textContent = active;
+      document.getElementById('sumRisky').textContent = risky;
+      document.getElementById('sumLost').textContent = lost;
+    }
+
     function render(){
       layerCustomers.clearLayers();layerLeads.clearLayers();layerTrucks.clearLayers();layerLines.clearLayers();
 
-      // Trucks
+      // Trucks (tooltip only)
       data.trucks.forEach(t=>{
         const lat=+ (t.latitude||t.lat||t.lattitude);
         const lng=+ (t.longitude||t.lng||t.longtitude||t.lon);
@@ -175,7 +188,7 @@
       const cust = data.customers.filter(passFilters);
       const leads = (document.getElementById('toggleLeads').checked? data.leads: []).filter(passFilters);
 
-      // Customers
+      // Customers: tooltip on hover, popup on click
       cust.forEach(c=>{
         const lat=+ (c.latitude||c.lat||c.lattitude);
         const lng=+ (c.longitude||c.lng||c.longtitude||c.lon);
@@ -184,11 +197,10 @@
         const m = L.circleMarker([lat,lng],{radius:6,color:col,weight:2,fillColor:col,fillOpacity:.2})
           .bindTooltip(tooltipHtml(c,'customer'),{className:'my',sticky:true})
           .addTo(layerCustomers);
-        // CLICK => เปิด popup (ค้าง) — ไม่มีการเปิด Google Maps ที่นี่
         m.on('click',()=>{ m.bindPopup(popupHtml(c), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
       });
 
-      // Leads + nearest line
+      // Leads: tooltip on hover, popup on click (+ optional nearest line)
       const wantNearest = document.getElementById('toggleNearest').checked;
       leads.forEach(l=>{
         const lat=+ (l.latitude||l.lat||l.lattitude);
@@ -197,7 +209,6 @@
         const mk = L.circleMarker([lat,lng],{radius:6,color:'#2563eb',weight:2,fillColor:'#2563eb',fillOpacity:.2})
           .bindTooltip(tooltipHtml(l,'lead'),{className:'my',sticky:true})
           .addTo(layerLeads);
-        // CLICK => เปิด popup (ค้าง)
         mk.on('click',()=>{ mk.bindPopup(popupHtml(l), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
 
         if(wantNearest){
