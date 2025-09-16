@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>KC Fuel – Sales & Leads Map</title>
+  <title>KCP Map For Sales Management (Active Customer & Leads)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -17,7 +17,7 @@
 <body class="bg-gray-50">
   <div id="panel" class="fixed z-[999] top-3 left-3 w-[360px] max-w-[92vw] bg-white/95 backdrop-blur border border-gray-200 rounded-2xl shadow-xl">
     <div class="p-4 border-b">
-      <h1 class="text-xl font-bold text-gray-900">KC Fuel – Sales & Leads Map</h1>
+      <h1 class="text-xl font-bold text-gray-900">KCP Map For Sales Management</h1>
       <p class="text-xs text-gray-500">แผนที่บริหารลูกค้าปัจจุบัน & ลูกค้ามุ่งหวัง (Google Sheets → แผนที่แบบเรียลไทม์)</p>
     </div>
     <div class="p-4 flex flex-col gap-3">
@@ -25,7 +25,7 @@
         <label class="text-xs text-gray-600">สาขา (Branch)
           <select id="branchFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
         </label>
-        <label class="text-xs text-gray-600">ผู้จัดการ (Manager)
+        <label class="text-xs text-gray-600">ผู้จัดการมิเตอร์ (Manager)
           <select id="managerFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
         </label>
         <label class="text-xs text-gray-600">รถมิเตอร์ (Truck)
@@ -118,10 +118,10 @@
         </svg>`;
       return L.icon({
         iconUrl: 'data:image/svg+xml;utf8,' + encodeURIComponent(svg),
-        iconSize: [26,40],
-        iconAnchor: [13,40],
-        popupAnchor: [0,-34],
-        tooltipAnchor: [0,-34]
+        iconSize: [18,28],
+        iconAnchor: [9,28],
+        popupAnchor: [0,-24],
+        tooltipAnchor: [0,-24]
       });
     }
     function leadPinColor(statusText){
