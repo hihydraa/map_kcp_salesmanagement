@@ -123,10 +123,12 @@
       });
     }
     function leadPinColor(statusText){
-      const s = String(statusText||'').trim();
-      if (s === 'ปิดการขาย') return '#10B981';
-      return '#EF4444';
-    }
+    const s = String(statusText || '').trim();
+    // ถ้าปิดการขาย -> สีเขียว #308320
+    if (s === 'ปิดการขาย') return '#308320';
+  // อื่น ๆ (หรือค่าว่าง) -> สีแดง
+    return '#EF4444';
+}
 
     // ---------- แปลงสถานะ (อังกฤษ -> ไทย) ----------
     function mapStatusTH(raw){
