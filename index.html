@@ -32,7 +32,6 @@
           <select id="truckFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
         </label>
         <label class="text-xs text-gray-600">สถานะลูกค้า
-          <!-- เปลี่ยนเป็นคำไทยทั้ง value และ label -->
           <select id="statusFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm">
             <option value="">ทั้งหมด</option>
             <option value="ลูกค้า Active">ลูกค้า Active</option>
@@ -83,7 +82,6 @@
       if(!text.includes('google.visualization')) throw new Error(`โหลดชีท "${sheetName}" ไม่สำเร็จ\n${text.slice(0,160)}`);
       const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
       const cols = json.table.cols.map(c => c.label || c.id);
-      // ใช้ค่า c.f (formatted) ก่อน เพื่อให้วันที่อย่าง lastest_sales แสดงผลได้ทันที
       const rows = json.table.rows.map(r => (r.c||[]).map(c => c ? (c.f ?? c.v ?? "") : ""));
       return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
     }
@@ -102,7 +100,6 @@
     const gmapsUrl = (lat,lng) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lat+","+lng)}`;
     const haversineKm=(a,b,c,d)=>{const R=6371,toRad=x=>x*Math.PI/180;const dLat=toRad(c-a),dLon=toRad(d-b);const h=Math.sin(dLat/2)**2+Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(h));};
 
-    // ── Google-style Pin (SVG) ─────────────────────────────
     function makePinIcon(colorHex){
       const c = (colorHex||'#EF4444').replace('#','');
       const svg = `
@@ -127,9 +124,8 @@
     }
     function leadPinColor(statusText){
       const s = String(statusText||'').trim();
-      // สีเขียวเมื่อปิดการขาย, อื่นๆ/ค่าว่าง = แดง
-      if (s === 'ปิดการขาย') return '#10B981'; // green-500
-      return '#EF4444'; // red-500
+      if (s === 'ปิดการขาย') return '#10B981';
+      return '#EF4444';
     }
 
     // ---------- แปลงสถานะ (อังกฤษ -> ไทย) ----------
@@ -140,12 +136,10 @@
       if (sl === 'active') return 'ลูกค้า Active';
       if (sl === 'risky to lost') return 'เสี่ยงที่จะเป็นลูกค้าหาย';
       if (sl === 'lost customer') return 'ลูกค้าหาย';
-      // ถ้าเป็นไทยอยู่แล้ว ให้คืนค่าเดิม (แต่ normalize คำว่า active ให้ตัวใหญ่ A)
       if (s === 'ลูกค้า active') return 'ลูกค้า Active';
-      return s; // ค่าที่เหลือคืนตามเดิม
+      return s;
     }
 
-    // จัดลำดับฟิลด์ (ไม่มี lat/long)
     function buildRowsHtml(obj, fields){
       return fields
         .filter(k => obj[k] !== undefined && obj[k] !== null && obj[k] !== "")
@@ -188,7 +182,6 @@
       if(b && (item.branch||'')!==b) return false;
       if(m && (item.manager_incharge||'')!==m) return false;
       if(t && (item.truck_id||item.nearest_truck_id||'')!==t) return false;
-      // เปรียบเทียบสถานะด้วยค่าภาษาไทยที่ normalize แล้ว (_statusTH)
       if(s && (item._statusTH||'')!==s) return false;
       return true;
     }
@@ -204,7 +197,6 @@
     function render(){
       layerCustomers.clearLayers();layerLeads.clearLayers();layerTrucks.clearLayers();layerLines.clearLayers();
 
-      // Trucks (แสดงตำแหน่งรถ)
       data.trucks.forEach(t=>{
         const lat=+ (t.latitude||t.lat||t.lattitude), lng=+ (t.longitude||t.lng||t.longtitude||t.lon);
         if(!isFinite(lat)||!isFinite(lng)) return;
@@ -217,7 +209,6 @@
       const cust = data.customers.filter(passFilters);
       const leads = (toggleLeads.checked? data.leads: []).filter(passFilters);
 
-      // Customers (วงกลม)
       cust.forEach(c=>{
         const lat=+ (c.latitude||c.lat||c.lattitude), lng=+ (c.longitude||c.lng||c.longtitude||c.lon);
         if(!isFinite(lat)||!isFinite(lng)) return;
@@ -228,7 +219,6 @@
         m.on('click',()=>{ m.bindPopup(popupHtml(c,'customer'), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
       });
 
-      // Leads (หมุดทรงหยดสีตามสถานะ) + เส้นหา nearest truck
       const wantNearest = toggleNearest.checked;
       leads.forEach(l=>{
         const lat=+ (l.latitude||l.lat||l.lattitude), lng=+ (l.longitude||l.lng||l.longtitude||l.lon);
@@ -255,7 +245,6 @@
         }
       });
 
-      // Fit view & summary
       const all=[]; layerCustomers.eachLayer(l=>all.push(l.getLatLng())); layerLeads.eachLayer(l=>all.push(l.getLatLng())); layerTrucks.eachLayer(l=>all.push(l.getLatLng()));
       if(all.length) map.fitBounds(L.latLngBounds(all),{padding:[60,60]});
       setSummary({customers:cust,leads});
@@ -264,33 +253,35 @@
     async function loadAndRender(){
       try{
         errorBox.classList.add('hidden');
-        const [settings,customers,leads,trucks] = await Promise.all([
+        const [settings, customersRaw, leads, trucks] = await Promise.all([
           fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
         ]);
-        // แปลงสถานะลูกค้าเป็นไทยไว้ที่ _statusTH เพื่อให้ฟิลเตอร์และสรุปทำงานกับคำไทยเสมอ
-        customers = customers.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
 
-        data={settings,customers,leads,trucks};
+        // สร้างตัวแปรใหม่แทนการเขียนทับ const
+        const customersData = customersRaw.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
 
-        // Center (ถ้าไม่ตั้ง, ใช้ค่าเริ่มต้น)
+        data={settings, customers: customersData, leads, trucks};
+
         const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase()===key) || {}).value;
         const cLat = parseFloat(findVal('CENTER_LAT')||16.43), cLng=parseFloat(findVal('CENTER_LNG')||103.49), zoom=parseInt(findVal('ZOOM')||9);
         map.setView([cLat,cLng], zoom);
 
-        // Truck colors
-        truckColorMap={}; trucks.forEach(t=>{const id=(t.truck_id||'').toString().trim().toLowerCase(); const col=normHex(t.color||''); if(id&&/^#?[0-9A-Fa-f]{6}$/.test(col.replace('#',''))) truckColorMap[id]=col.startsWith('#')?col:'#'+col;});
+        truckColorMap={};
+        trucks.forEach(t=>{
+          const id=(t.truck_id||'').toString().trim().toLowerCase();
+          const col=normHex(t.color||'');
+          if(id&&/^#?[0-9A-Fa-f]{6}$/.test(col.replace('#',''))) truckColorMap[id]=col.startsWith('#')?col:'#'+col;
+        });
 
-        // ตัวเลือกในฟิลเตอร์
         const setOpts=(el,opts)=>{ el.innerHTML=''; el.append(new Option('ทั้งหมด','')); opts.forEach(o=>el.append(new Option(o,o))); };
-        setOpts(branchFilter, uniqueSorted([ ...customers.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
-        setOpts(managerFilter, uniqueSorted([ ...customers.map(c=>c.manager_incharge), ...trucks.map(t=>t.manager_incharge) ]));
+        setOpts(branchFilter, uniqueSorted([ ...customersData.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
+        setOpts(managerFilter, uniqueSorted([ ...customersData.map(c=>c.manager_incharge), ...trucks.map(t=>t.manager_incharge) ]));
         setOpts(truckFilter, uniqueSorted(trucks.map(t=>t.truck_id)));
 
         render();
       }catch(err){ showError(err.message||String(err)); }
     }
 
-    // UI
     btnRefresh.onclick = ()=>loadAndRender(true);
     btnReset.onclick = ()=>{ [branchFilter,managerFilter,truckFilter,statusFilter].forEach(el=>el.value=""); render(); };
     [branchFilter,managerFilter,truckFilter,statusFilter,toggleLeads,toggleNearest].forEach(el=> el.addEventListener('change',render));
