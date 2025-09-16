@@ -32,11 +32,12 @@
           <select id="truckFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
         </label>
         <label class="text-xs text-gray-600">สถานะลูกค้า
+          <!-- เปลี่ยนเป็นคำไทยทั้ง value และ label -->
           <select id="statusFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm">
             <option value="">ทั้งหมด</option>
-            <option value="active">active</option>
-            <option value="risky to lost">risky to lost</option>
-            <option value="lost customer">lost customer</option>
+            <option value="ลูกค้า Active">ลูกค้า Active</option>
+            <option value="เสี่ยงที่จะเป็นลูกค้าหาย">เสี่ยงที่จะเป็นลูกค้าหาย</option>
+            <option value="ลูกค้าหาย">ลูกค้าหาย</option>
           </select>
         </label>
       </div>
@@ -57,9 +58,9 @@
         <div id="summary" class="text-sm grid grid-cols-2 gap-x-3 gap-y-1">
           <div>Customers:</div><div id="sumCustomers" class="font-semibold">-</div>
           <div>Leads:</div><div id="sumLeads" class="font-semibold">-</div>
-          <div>Active:</div><div id="sumActive" class="font-semibold">-</div>
-          <div>Risky:</div><div id="sumRisky" class="font-semibold">-</div>
-          <div>Lost:</div><div id="sumLost" class="font-semibold">-</div>
+          <div>ลูกค้า Active:</div><div id="sumActive" class="font-semibold">-</div>
+          <div>เสี่ยงที่จะเป็นลูกค้าหาย:</div><div id="sumRisky" class="font-semibold">-</div>
+          <div>ลูกค้าหาย:</div><div id="sumLost" class="font-semibold">-</div>
         </div>
         <div id="errorBox" class="text-xs text-red-600 mt-2 hidden"></div>
       </div>
@@ -82,7 +83,7 @@
       if(!text.includes('google.visualization')) throw new Error(`โหลดชีท "${sheetName}" ไม่สำเร็จ\n${text.slice(0,160)}`);
       const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
       const cols = json.table.cols.map(c => c.label || c.id);
-      // ใช้ค่าที่ฟอร์แมตแล้ว (c.f) ก่อน เพื่อให้วันที่อย่าง lastest_sales แสดงผลได้ทันที
+      // ใช้ค่า c.f (formatted) ก่อน เพื่อให้วันที่อย่าง lastest_sales แสดงผลได้ทันที
       const rows = json.table.rows.map(r => (r.c||[]).map(c => c ? (c.f ?? c.v ?? "") : ""));
       return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
     }
@@ -103,7 +104,7 @@
 
     // ── Google-style Pin (SVG) ─────────────────────────────
     function makePinIcon(colorHex){
-      const c = colorHex.replace('#','');
+      const c = (colorHex||'#EF4444').replace('#','');
       const svg = `
         <svg xmlns="http://www.w3.org/2000/svg" width="26" height="40" viewBox="0 0 26 40">
           <defs>
@@ -131,6 +132,19 @@
       return '#EF4444'; // red-500
     }
 
+    // ---------- แปลงสถานะ (อังกฤษ -> ไทย) ----------
+    function mapStatusTH(raw){
+      if(raw==null) return "";
+      const s = String(raw).trim();
+      const sl = s.toLowerCase();
+      if (sl === 'active') return 'ลูกค้า Active';
+      if (sl === 'risky to lost') return 'เสี่ยงที่จะเป็นลูกค้าหาย';
+      if (sl === 'lost customer') return 'ลูกค้าหาย';
+      // ถ้าเป็นไทยอยู่แล้ว ให้คืนค่าเดิม (แต่ normalize คำว่า active ให้ตัวใหญ่ A)
+      if (s === 'ลูกค้า active') return 'ลูกค้า Active';
+      return s; // ค่าที่เหลือคืนตามเดิม
+    }
+
     // จัดลำดับฟิลด์ (ไม่มี lat/long)
     function buildRowsHtml(obj, fields){
       return fields
@@ -141,11 +155,11 @@
 
     function tooltipHtml(obj,type){
       const fields = (type==='customer')
-        ? ['customer_id','customer_name','lastest_sales','status','branch','truck_id','manager_incharge','notes']
+        ? ['customer_id','customer_name','lastest_sales','_statusTH','branch','truck_id','manager_incharge','notes']
         : ['leads_name','status','province','district','nearest_truck_id','saler','branch','notes'];
       const rows = buildRowsHtml(obj, fields);
       const badge= type==='customer'
-        ? `<span class="badge" style="background:${getTruckColor(obj.truck_id)||'#16a34a'};color:white">${obj.status||obj._statusNorm||''}</span>`
+        ? `<span class="badge" style="background:${getTruckColor(obj.truck_id)||'#16a34a'};color:white">${obj._statusTH||''}</span>`
         : `<span class="badge" style="background:#2563eb;color:white">LEAD</span>`;
       return `<div class="text-sm">
         <div class="mb-1 font-bold">${obj.customer_name||obj.leads_name||obj.truck_id} ${badge}</div>
@@ -157,7 +171,7 @@
       const lat = parseFloat(obj.latitude||obj.lat||obj.lattitude);
       const lng = parseFloat(obj.longitude||obj.lng||obj.longtitude||obj.lon);
       const fields = (type==='customer')
-        ? ['customer_id','customer_name','lastest_sales','status','branch','truck_id','manager_incharge','notes']
+        ? ['customer_id','customer_name','lastest_sales','_statusTH','branch','truck_id','manager_incharge','notes']
         : ['leads_name','status','province','district','nearest_truck_id','saler','branch','notes'];
       const rows = buildRowsHtml(obj, fields);
       const gmBtn = (isFinite(lat)&&isFinite(lng))
@@ -174,15 +188,17 @@
       if(b && (item.branch||'')!==b) return false;
       if(m && (item.manager_incharge||'')!==m) return false;
       if(t && (item.truck_id||item.nearest_truck_id||'')!==t) return false;
-      if(s && (item.status||item._statusNorm||'')!==s) return false;
+      // เปรียบเทียบสถานะด้วยค่าภาษาไทยที่ normalize แล้ว (_statusTH)
+      if(s && (item._statusTH||'')!==s) return false;
       return true;
     }
+
     function setSummary({customers, leads}){
       sumCustomers.textContent = customers.length;
       sumLeads.textContent = leads.length;
-      sumActive.textContent = customers.filter(c => (c.status||c._statusNorm||'')==='active').length;
-      sumRisky.textContent  = customers.filter(c => (c.status||c._statusNorm||'')==='risky to lost').length;
-      sumLost.textContent   = customers.filter(c => (c.status||c._statusNorm||'')==='lost customer').length;
+      sumActive.textContent = customers.filter(c => (c._statusTH||'')==='ลูกค้า Active').length;
+      sumRisky.textContent  = customers.filter(c => (c._statusTH||'')==='เสี่ยงที่จะเป็นลูกค้าหาย').length;
+      sumLost.textContent   = customers.filter(c => (c._statusTH||'')==='ลูกค้าหาย').length;
     }
 
     function render(){
@@ -251,6 +267,9 @@
         const [settings,customers,leads,trucks] = await Promise.all([
           fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
         ]);
+        // แปลงสถานะลูกค้าเป็นไทยไว้ที่ _statusTH เพื่อให้ฟิลเตอร์และสรุปทำงานกับคำไทยเสมอ
+        customers = customers.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
+
         data={settings,customers,leads,trucks};
 
         // Center (ถ้าไม่ตั้ง, ใช้ค่าเริ่มต้น)
