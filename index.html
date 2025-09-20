@@ -95,10 +95,24 @@
     // normalize truck_id: lower-case + ตัดทุกอย่างที่ไม่ใช่ a-z0-9
     const normId = (id) => String(id||"").toLowerCase().replace(/[^a-z0-9]/g, "");
 
-    let truckColorMap = {};
+    // Truck color mapping based on truck_id
+    let truckColorMap = {
+      "mt-57": "#63079C",
+      "mt-49": "#FFD22E",
+      "mt-65": "#FF61EF",
+      "mt-55": "#FF7700",
+      "ch-66": "#002BFF",
+      "mt-60": "#6D6664",
+      "mt-58": "#FA1196",
+      "ch-69": "#8BE6FD",
+      "mt-61": "#440E03",
+      "mt-51": "#C44AFF",
+      "ch-67": "#00FFE1"
+    };
+
     const getTruckColor = (id) => {
       const key = normId(id);
-      return truckColorMap[key] || "";
+      return truckColorMap[key] || "#D3D3D3";  // Default color for missing values
     };
 
     const uniqueSorted = (arr) => [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'));
@@ -263,71 +277,4 @@
           data.trucks.forEach(t=>{
             const tlat=+(t.latitude||t.lat||t.lattitude), tlng=+(t.longitude||t.lng||t.longtitude||t.lon);
             if(!isFinite(tlat)||!isFinite(tlng)) return;
-            const d=haversineKm(lat,lng,tlat,tlng);
-            if(d<best.d) best={d,t};
-          });
-          if(best.t){
-            const tlat=+(best.t.latitude||best.t.lat||best.t.lattitude), tlng=+(best.t.longitude||best.t.lng||best.t.longtitude||best.t.lon);
-            L.polyline([[lat,lng],[tlat,tlng]],{color:'#64748b',weight:1.5,dashArray:'4 4'}).addTo(layerLines);
-          }
-        }
-      });
-
-      // แจ้งเตือน truck_id ที่ไม่มีสีในชีท Trucks
-      if(missing.size){
-        showError(`ไม่มีค่าสีในชีท Trucks สำหรับ truck_id: ${[...missing].join(', ')}`);
-      }else{
-        document.getElementById('errorBox').classList.add('hidden');
-      }
-
-      const all=[]; layerCustomers.eachLayer(l=>all.push(l.getLatLng())); layerLeads.eachLayer(l=>all.push(l.getLatLng())); layerTrucks.eachLayer(l=>all.push(l.getLatLng()));
-      if(all.length) map.fitBounds(L.latLngBounds(all),{padding:[60,60]});
-      setSummary({customers:cust,leads});
-    }
-
-    async function loadAndRender(){
-      try{
-        document.getElementById('errorBox').classList.add('hidden');
-        const [settings, customersRaw, leads, trucks] = await Promise.all([
-          fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
-        ]);
-
-        const customersData = customersRaw.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
-
-        // สร้างแผนที่สีรถจากชีท Trucks (key = truck_id normalized)
-        truckColorMap = {};
-        trucks.forEach(t=>{
-          const key = normId(t.truck_id);
-          const col = normHex(t.color);
-          if (key && col) truckColorMap[key] = col;
-        });
-
-        data={settings, customers: customersData, leads, trucks};
-
-        // ตั้งค่า Center
-        const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase()===key) || {}).value;
-        const cLat = parseFloat(findVal('CENTER_LAT')||16.43),
-              cLng = parseFloat(findVal('CENTER_LNG')||103.49),
-              zoom = parseInt(findVal('ZOOM')||9);
-        map.setView([cLat,cLng], zoom);
-
-        // ตัวเลือกในฟิลเตอร์
-        const setOpts=(el,opts)=>{ el.innerHTML=''; el.append(new Option('ทั้งหมด','')); opts.forEach(o=>el.append(new Option(o,o))); };
-        setOpts(branchFilter,  uniqueSorted([ ...customersData.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
-        setOpts(managerFilter, uniqueSorted([ ...customersData.map(c=>c.manager_incharge), ...trucks.map(t=>t.manager_incharge) ]));
-        setOpts(truckFilter,   uniqueSorted(trucks.map(t=>t.truck_id)));
-
-        render();
-      }catch(err){ showError(err.message||String(err)); }
-    }
-
-    // UI
-    btnRefresh.onclick = ()=>loadAndRender(true);
-    btnReset.onclick = ()=>{ [branchFilter,managerFilter,truckFilter,statusFilter].forEach(el=>el.value=""); render(); };
-    [branchFilter,managerFilter,truckFilter,statusFilter,toggleLeads,toggleNearest].forEach(el=> el.addEventListener('change',render));
-
-    loadAndRender();
-    setInterval(loadAndRender,300000);
-  </script>
-</body>
-</html>
+            const d=haversineKm(lat,lng,t
