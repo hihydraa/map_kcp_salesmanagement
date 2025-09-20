@@ -86,20 +86,26 @@
       return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
     }
 
-    // Map + Layers
-    const map = L.map('map');
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
-    const layerCustomers=L.layerGroup().addTo(map),layerLeads=L.layerGroup().addTo(map),layerTrucks=L.layerGroup().addTo(map),layerLines=L.layerGroup().addTo(map);
+    // ---------- Helpers ----------
+    const normHex = (c) => {
+      if (!c) return "";
+      const raw = String(c).trim().replace(/^#/, "");
+      if (/^[0-9A-Fa-f]{6}$/.test(raw)) return "#" + raw.toUpperCase();
+      return ""; // ไม่ใช่รหัสสี 6 หลัก ให้ปล่อยว่าง
+    };
+    const normId = (id) => (id || "").toString().trim().toLowerCase();
 
-    let data={customers:[],leads:[],trucks:[],settings:[]};
-    let truckColorMap={};
+    let truckColorMap = {};
+    const getTruckColor = (id) => {
+      const key = normId(id);
+      return truckColorMap[key] || "";
+    };
 
-    const normHex = c => !c ? "" : (String(c).trim().startsWith('#')?String(c).trim():'#'+String(c).trim());
-    const getTruckColor = id => !id ? "" : (truckColorMap[String(id).trim().toLowerCase()]||"");
-    const uniqueSorted = arr => [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'));
+    const uniqueSorted = (arr) => [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'));
     const gmapsUrl = (lat,lng) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lat+","+lng)}`;
     const haversineKm=(a,b,c,d)=>{const R=6371,toRad=x=>x*Math.PI/180;const dLat=toRad(c-a),dLon=toRad(d-b);const h=Math.sin(dLat/2)**2+Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(h));};
 
+    // ── Google-style Pin (SVG) ─────────────────────────────
     function makePinIcon(colorHex){
       const c = (colorHex||'#EF4444').replace('#','');
       const svg = `
@@ -123,12 +129,11 @@
       });
     }
     function leadPinColor(statusText){
-    const s = String(statusText || '').trim();
-    // ถ้าปิดการขาย -> สีเขียว #308320
-    if (s === 'ปิดการขาย') return '#308320';
-  // อื่น ๆ (หรือค่าว่าง) -> สีแดง
-    return '#EF4444';
-}
+      const s = String(statusText || '').trim();
+      // ปิดการขาย -> เขียว #308320, อื่น ๆ -> แดง
+      if (s === 'ปิดการขาย') return '#308320';
+      return '#EF4444';
+    }
 
     // ---------- แปลงสถานะ (อังกฤษ -> ไทย) ----------
     function mapStatusTH(raw){
@@ -196,13 +201,24 @@
       sumLost.textContent   = customers.filter(c => (c._statusTH||'')==='ลูกค้าหาย').length;
     }
 
+    // Map + Layers
+    const map = L.map('map');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+    const layerCustomers=L.layerGroup().addTo(map),
+          layerLeads=L.layerGroup().addTo(map),
+          layerTrucks=L.layerGroup().addTo(map),
+          layerLines=L.layerGroup().addTo(map);
+
+    let data={customers:[],leads:[],trucks:[],settings:[]};
+
     function render(){
       layerCustomers.clearLayers();layerLeads.clearLayers();layerTrucks.clearLayers();layerLines.clearLayers();
 
+      // Trucks
       data.trucks.forEach(t=>{
         const lat=+ (t.latitude||t.lat||t.lattitude), lng=+ (t.longitude||t.lng||t.longtitude||t.lon);
         if(!isFinite(lat)||!isFinite(lng)) return;
-        const col=normHex(t.color||'')||'#111827';
+        const col=normHex(t.color)||'#111827';
         L.circleMarker([lat,lng],{radius:7,color:col,weight:2,fillColor:'#fff',fillOpacity:1})
           .bindTooltip(`<div class="text-sm font-bold">${t.truck_id}</div>`,{className:'my',sticky:true})
           .addTo(layerTrucks);
@@ -211,16 +227,24 @@
       const cust = data.customers.filter(passFilters);
       const leads = (toggleLeads.checked? data.leads: []).filter(passFilters);
 
+      // Customers (ใช้สีจากชีท + opacity ชัดเจน)
       cust.forEach(c=>{
         const lat=+ (c.latitude||c.lat||c.lattitude), lng=+ (c.longitude||c.lng||c.longtitude||c.lon);
         if(!isFinite(lat)||!isFinite(lng)) return;
-        const col=getTruckColor(c.truck_id)||'#16a34a';
-        const m = L.circleMarker([lat,lng],{radius:6,color:col,weight:2,fillColor:col,fillOpacity:.2})
+        const col=getTruckColor(c.truck_id) || '#16a34a';
+        const m = L.circleMarker([lat,lng],{
+            radius:6,
+            color:'#111827',      // ขอบดำให้คอนทราสต์
+            weight:1,
+            fillColor:col,        // สีจาก Google Sheet
+            fillOpacity:0.6       // opacity ชัดเจน
+          })
           .bindTooltip(tooltipHtml(c,'customer'),{className:'my',sticky:true})
           .addTo(layerCustomers);
         m.on('click',()=>{ m.bindPopup(popupHtml(c,'customer'), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
       });
 
+      // Leads + nearest truck
       const wantNearest = toggleNearest.checked;
       leads.forEach(l=>{
         const lat=+ (l.latitude||l.lat||l.lattitude), lng=+ (l.longitude||l.lng||l.longtitude||l.lon);
@@ -259,31 +283,37 @@
           fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
         ]);
 
-        // สร้างตัวแปรใหม่แทนการเขียนทับ const
+        // สถานะลูกค้า → ไทย
         const customersData = customersRaw.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
+
+        // สร้างแผนที่สีรถ: key = truck_id (normalize), value = สีแบบ #RRGGBB
+        truckColorMap = {};
+        trucks.forEach(t=>{
+          const key = normId(t.truck_id);
+          const col = normHex(t.color);
+          if (key && col) truckColorMap[key] = col;
+        });
 
         data={settings, customers: customersData, leads, trucks};
 
+        // ตั้งค่า Center
         const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase()===key) || {}).value;
-        const cLat = parseFloat(findVal('CENTER_LAT')||16.43), cLng=parseFloat(findVal('CENTER_LNG')||103.49), zoom=parseInt(findVal('ZOOM')||9);
+        const cLat = parseFloat(findVal('CENTER_LAT')||16.43),
+              cLng = parseFloat(findVal('CENTER_LNG')||103.49),
+              zoom = parseInt(findVal('ZOOM')||9);
         map.setView([cLat,cLng], zoom);
 
-        truckColorMap={};
-        trucks.forEach(t=>{
-          const id=(t.truck_id||'').toString().trim().toLowerCase();
-          const col=normHex(t.color||'');
-          if(id&&/^#?[0-9A-Fa-f]{6}$/.test(col.replace('#',''))) truckColorMap[id]=col.startsWith('#')?col:'#'+col;
-        });
-
+        // ตัวเลือกในฟิลเตอร์
         const setOpts=(el,opts)=>{ el.innerHTML=''; el.append(new Option('ทั้งหมด','')); opts.forEach(o=>el.append(new Option(o,o))); };
-        setOpts(branchFilter, uniqueSorted([ ...customersData.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
+        setOpts(branchFilter,  uniqueSorted([ ...customersData.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
         setOpts(managerFilter, uniqueSorted([ ...customersData.map(c=>c.manager_incharge), ...trucks.map(t=>t.manager_incharge) ]));
-        setOpts(truckFilter, uniqueSorted(trucks.map(t=>t.truck_id)));
+        setOpts(truckFilter,   uniqueSorted(trucks.map(t=>t.truck_id)));
 
         render();
       }catch(err){ showError(err.message||String(err)); }
     }
 
+    // UI
     btnRefresh.onclick = ()=>loadAndRender(true);
     btnReset.onclick = ()=>{ [branchFilter,managerFilter,truckFilter,statusFilter].forEach(el=>el.value=""); render(); };
     [branchFilter,managerFilter,truckFilter,statusFilter,toggleLeads,toggleNearest].forEach(el=> el.addEventListener('change',render));
