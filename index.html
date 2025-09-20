@@ -239,7 +239,7 @@
       const cust = data.customers.filter(passFilters);
       const leads = (toggleLeads.checked? data.leads: []).filter(passFilters);
 
-      // ติดตาม truck_id ที่หา "สีไม่เจอ" เพื่อแสดงเตือน
+      // แจ้งเตือน truck_id ที่ไม่มีสีในชีท Trucks
       const missing = new Set();
 
       // Customers (ใช้สีจากชีท + opacity)
@@ -263,18 +263,4 @@
       // Leads + nearest truck
       const wantNearest = toggleNearest.checked;
       leads.forEach(l=>{
-        const lat=+ (l.latitude||l.lat||l.lattitude), lng=+ (l.longitude||l.lng||l.longtitude||l.lon);
-        if(!isFinite(lat)||!isFinite(lng)) return;
-
-        const pinCol = leadPinColor(l.status);
-        const marker = L.marker([lat,lng], { icon: makePinIcon(pinCol) })
-          .bindTooltip(tooltipHtml(l,'lead'), { className:'my', sticky:true })
-          .addTo(layerLeads);
-        marker.on('click', ()=>{ marker.bindPopup(popupHtml(l,'lead'), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
-
-        if(wantNearest){
-          let best={d:Infinity,t:null};
-          data.trucks.forEach(t=>{
-            const tlat=+(t.latitude||t.lat||t.lattitude), tlng=+(t.longitude||t.lng||t.longtitude||t.lon);
-            if(!isFinite(tlat)||!isFinite(tlng)) return;
-            const d=haversineKm(lat,lng,t
+        const lat=+ (l.latitude||l.lat||l.lattitude), lng
