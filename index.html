@@ -95,10 +95,25 @@
     // normalize truck_id: lower-case + ตัดทุกอย่างที่ไม่ใช่ a-z0-9
     const normId = (id) => String(id||"").toLowerCase().replace(/[^a-z0-9]/g, "");
 
-    let truckColorMap = {};
-    const getTruckColor = (id) => {
-      const key = normId(id);
-      return truckColorMap[key] || "";
+    // ตารางสีสำหรับแต่ละ truck_id (ค่าคงที่)
+    let truckColorMap = {
+      "mt57": "#63079C",  // สีม่วง
+      "mt49": "#FFD22E",  // สีเหลือง
+      "mt65": "#FF61EF",  // สีชมพู
+      "mt55": "#FF7700",  // สีส้ม
+      "ch66": "#002BFF",  // สีน้ำเงินเข้ม
+      "mt60": "#6D6664",  // สีเทา
+      "mt58": "#FA1196",  // สีชมพูสด
+      "ch69": "#8BE6FD",  // สีฟ้าอ่อน
+      "mt61": "#440E03",  // สีแดงเข้ม
+      "mt51": "#C44AFF",  // สีม่วงอ่อน
+      "ch67": "#00FFE1"   // สีฟ้าอมเขียว
+    };
+
+    // ฟังก์ชันสำหรับหาสีของ truck ตาม truck_id
+    const getTruckColor = (truckId) => {
+      const normalizedId = normId(truckId);
+      return truckColorMap[normalizedId] || "#9CA3AF"; // default สีเทา
     };
 
     const uniqueSorted = (arr) => [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'));
@@ -158,7 +173,7 @@
         : ['leads_name','status','province','district','nearest_truck_id','saler','branch','notes'];
       const rows = buildRowsHtml(obj, fields);
       const badge= type==='customer'
-        ? `<span class="badge" style="background:${getTruckColor(obj.truck_id)||'#9CA3AF'};color:white">${obj._statusTH||''}</span>`
+        ? `<span class="badge" style="background:${getTruckColor(obj.truck_id)};color:white">${obj._statusTH||''}</span>`
         : `<span class="badge" style="background:#2563eb;color:white">LEAD</span>`;
       return `<div class="text-sm">
         <div class="mb-1 font-bold">${obj.customer_name||obj.leads_name||obj.truck_id} ${badge}</div>
@@ -212,11 +227,11 @@
     function render(){
       layerCustomers.clearLayers();layerLeads.clearLayers();layerTrucks.clearLayers();layerLines.clearLayers();
 
-      // Trucks
+      // Trucks - แสดงด้วยสีจาก truckColorMap
       data.trucks.forEach(t=>{
         const lat=+ (t.latitude||t.lat||t.lattitude), lng=+ (t.longitude||t.lng||t.longtitude||t.lon);
         if(!isFinite(lat)||!isFinite(lng)) return;
-        const col=normHex(t.color)||'#111827';
+        const col = getTruckColor(t.truck_id);
         L.circleMarker([lat,lng],{radius:7,color:col,weight:2,fillColor:'#fff',fillOpacity:1})
           .bindTooltip(`<div class="text-sm font-bold">${t.truck_id}</div>`,{className:'my',sticky:true})
           .addTo(layerTrucks);
@@ -225,109 +240,139 @@
       const cust = data.customers.filter(passFilters);
       const leads = (toggleLeads.checked? data.leads: []).filter(passFilters);
 
-      // ติดตาม truck_id ที่หา "สีไม่เจอ" เพื่อแสดงเตือน
-      const missing = new Set();
-
-      // Customers (ใช้สีจากชีท + opacity)
+      // Customers - ใช้สีคงที่ตาม truck_id
       cust.forEach(c=>{
         const lat=+ (c.latitude||c.lat||c.lattitude), lng=+ (c.longitude||c.lng||c.longtitude||c.lon);
         if(!isFinite(lat)||!isFinite(lng)) return;
-        let col = getTruckColor(c.truck_id);
-        if(!col){ col = '#9CA3AF'; missing.add(String(c.truck_id||'').trim()); } // เทาและเก็บชื่อไว้แจ้งเตือน
+        
+        // กำหนดสีตาม truck_id แบบค่าคงที่
+        const col = getTruckColor(c.truck_id);
+        
         const m = L.circleMarker([lat,lng],{
             radius:6,
-            color:col,           // เส้นขอบ = สีรถ
+            color:col,           // เส้นขอบ = สีตาม truck_id
             weight:2,
-            fillColor:col,       // เติมสี = สีรถ
-            fillOpacity:0.6
+            fillColor:col,       // เติมสี = สีตาม truck_id  
+            fillOpacity:0.8      // เพิ่ม opacity ให้เห็นชัดขึ้น
           })
           .bindTooltip(tooltipHtml(c,'customer'),{className:'my',sticky:true})
           .addTo(layerCustomers);
         m.on('click',()=>{ m.bindPopup(popupHtml(c,'customer'), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
       });
 
-      // Leads + nearest truck
-      const wantNearest = toggleNearest.checked;
+      // Leads - แสดงตามปกติ
       leads.forEach(l=>{
-        const lat=+ (l.latitude||l.lat||l.lattitude), lng=+ (l.longitude||l.lng||l.longtitude||l.lon);
+        const lat=+(l.latitude||l.lat||l.lattitude), lng=+(l.longitude||l.lng||l.longtitude||l.lon);
         if(!isFinite(lat)||!isFinite(lng)) return;
-
-        const pinCol = leadPinColor(l.status);
-        const marker = L.marker([lat,lng], { icon: makePinIcon(pinCol) })
-          .bindTooltip(tooltipHtml(l,'lead'), { className:'my', sticky:true })
+        const col = leadPinColor(l.status);
+        const pin = makePinIcon(col);
+        const m = L.marker([lat,lng],{icon:pin})
+          .bindTooltip(tooltipHtml(l,'lead'),{className:'my',sticky:true})
           .addTo(layerLeads);
-        marker.on('click', ()=>{ marker.bindPopup(popupHtml(l,'lead'), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
+        m.on('click',()=>{ m.bindPopup(popupHtml(l,'lead'), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
 
-        if(wantNearest){
-          let best={d:Infinity,t:null};
-          data.trucks.forEach(t=>{
-            const tlat=+(t.latitude||t.lat||t.lattitude), tlng=+(t.longitude||t.lng||t.longtitude||t.lon);
-            if(!isFinite(tlat)||!isFinite(tlng)) return;
-            const d=haversineKm(lat,lng,tlat,tlng);
-            if(d<best.d) best={d,t};
-          });
-          if(best.t){
-            const tlat=+(best.t.latitude||best.t.lat||best.t.lattitude), tlng=+(best.t.longitude||best.t.lng||best.t.longtitude||best.t.lon);
-            L.polyline([[lat,lng],[tlat,tlng]],{color:'#64748b',weight:1.5,dashArray:'4 4'}).addTo(layerLines);
+        // เส้นเชื่อมไปรถที่ใกล้สุด
+        if(toggleNearest.checked && l.nearest_truck_id){
+          const truck = data.trucks.find(t=>normId(t.truck_id)===normId(l.nearest_truck_id));
+          if(truck){
+            const tLat=+(truck.latitude||truck.lat||truck.lattitude), tLng=+(truck.longitude||truck.lng||truck.longtitude||truck.lon);
+            if(isFinite(tLat)&&isFinite(tLng)){
+              L.polyline([[lat,lng],[tLat,tLng]],{color:getTruckColor(l.nearest_truck_id),weight:2,opacity:0.6,dashArray:'5,5'})
+                .addTo(layerLines);
+            }
           }
         }
       });
 
-      // แจ้งเตือน truck_id ที่ไม่มีสีในชีท Trucks
-      if(missing.size){
-        showError(`ไม่มีค่าสีในชีท Trucks สำหรับ truck_id: ${[...missing].join(', ')}`);
-      }else{
-        document.getElementById('errorBox').classList.add('hidden');
-      }
-
-      const all=[]; layerCustomers.eachLayer(l=>all.push(l.getLatLng())); layerLeads.eachLayer(l=>all.push(l.getLatLng())); layerTrucks.eachLayer(l=>all.push(l.getLatLng()));
+      const all=[]; 
+      layerCustomers.eachLayer(l=>all.push(l.getLatLng())); 
+      layerLeads.eachLayer(l=>all.push(l.getLatLng())); 
+      layerTrucks.eachLayer(l=>all.push(l.getLatLng()));
       if(all.length) map.fitBounds(L.latLngBounds(all),{padding:[60,60]});
+
       setSummary({customers:cust,leads});
     }
 
-    async function loadAndRender(){
+    // DOM elements
+    const branchFilter=document.getElementById('branchFilter'),
+          managerFilter=document.getElementById('managerFilter'),
+          truckFilter=document.getElementById('truckFilter'),
+          statusFilter=document.getElementById('statusFilter'),
+          toggleLeads=document.getElementById('toggleLeads'),
+          toggleNearest=document.getElementById('toggleNearest'),
+          btnRefresh=document.getElementById('btnRefresh'),
+          btnReset=document.getElementById('btnReset'),
+          sumCustomers=document.getElementById('sumCustomers'),
+          sumLeads=document.getElementById('sumLeads'),
+          sumActive=document.getElementById('sumActive'),
+          sumRisky=document.getElementById('sumRisky'),
+          sumLost=document.getElementById('sumLost');
+
+    async function loadData(){
       try{
         document.getElementById('errorBox').classList.add('hidden');
-        const [settings, customersRaw, leads, trucks] = await Promise.all([
-          fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
+        const [customers,leads,trucks,settings] = await Promise.all([
+          fetchSheet(SHEETS.customers),
+          fetchSheet(SHEETS.leads),
+          fetchSheet(SHEETS.trucks),
+          fetchSheet(SHEETS.settings)
         ]);
 
-        const customersData = customersRaw.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
-
-        // สร้างแผนที่สีรถจากชีท Trucks (key = truck_id normalized)
-        truckColorMap = {};
-        trucks.forEach(t=>{
-          const key = normId(t.truck_id);
-          const col = normHex(t.color);
-          if (key && col) truckColorMap[key] = col;
+        // อัพเดตสีจาก Settings sheet ถ้ามี
+        settings.forEach(s => {
+          const hex = normHex(s.color);
+          if (hex && s.truck_id) {
+            truckColorMap[normId(s.truck_id)] = hex;
+          }
         });
 
-        data={settings, customers: customersData, leads, trucks};
+        data={
+          customers: customers.map(c=>({...c, _statusTH:mapStatusTH(c.customer_status||c.status)})),
+          leads: leads.map(l=>{
+            if(!toggleNearest.checked) return l;
+            let nearest=null,minDist=Infinity;
+            const lLat=+(l.latitude||l.lat||l.lattitude), lLng=+(l.longitude||l.lng||l.longtitude||l.lon);
+            if(isFinite(lLat)&&isFinite(lLng)){
+              trucks.forEach(t=>{
+                const tLat=+(t.latitude||t.lat||t.lattitude), tLng=+(t.longitude||t.lng||t.longtitude||t.lon);
+                if(isFinite(tLat)&&isFinite(tLng)){
+                  const d=haversineKm(lLat,lLng,tLat,tLng);
+                  if(d<minDist){ minDist=d; nearest=t.truck_id; }
+                }
+              });
+            }
+            return {...l, nearest_truck_id:nearest};
+          }),
+          trucks,
+          settings
+        };
 
-        // ตั้งค่า Center
-        const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase()===key) || {}).value;
-        const cLat = parseFloat(findVal('CENTER_LAT')||16.43),
-              cLng = parseFloat(findVal('CENTER_LNG')||103.49),
-              zoom = parseInt(findVal('ZOOM')||9);
-        map.setView([cLat,cLng], zoom);
+        // อัพเดต dropdowns
+        const branches=uniqueSorted(data.customers.map(c=>c.branch).concat(data.trucks.map(t=>t.branch)));
+        const managers=uniqueSorted(data.customers.map(c=>c.manager_incharge).concat(data.trucks.map(t=>t.manager_incharge)));  
+        const truckIds=uniqueSorted(data.customers.map(c=>c.truck_id).concat(data.trucks.map(t=>t.truck_id)));
 
-        // ตัวเลือกในฟิลเตอร์
-        const setOpts=(el,opts)=>{ el.innerHTML=''; el.append(new Option('ทั้งหมด','')); opts.forEach(o=>el.append(new Option(o,o))); };
-        setOpts(branchFilter,  uniqueSorted([ ...customersData.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
-        setOpts(managerFilter, uniqueSorted([ ...customersData.map(c=>c.manager_incharge), ...trucks.map(t=>t.manager_incharge) ]));
-        setOpts(truckFilter,   uniqueSorted(trucks.map(t=>t.truck_id)));
+        branchFilter.innerHTML='<option value="">ทั้งหมด</option>'+branches.map(b=>`<option value="${b}">${b}</option>`).join('');
+        managerFilter.innerHTML='<option value="">ทั้งหมด</option>'+managers.map(m=>`<option value="${m}">${m}</option>`).join('');
+        truckFilter.innerHTML='<option value="">ทั้งหมด</option>'+truckIds.map(t=>`<option value="${t}">${t}</option>`).join('');
 
         render();
-      }catch(err){ showError(err.message||String(err)); }
+      }catch(e){
+        showError(e.message);
+      }
     }
 
-    // UI
-    btnRefresh.onclick = ()=>loadAndRender(true);
-    btnReset.onclick = ()=>{ [branchFilter,managerFilter,truckFilter,statusFilter].forEach(el=>el.value=""); render(); };
-    [branchFilter,managerFilter,truckFilter,statusFilter,toggleLeads,toggleNearest].forEach(el=> el.addEventListener('change',render));
+    // Event listeners
+    [branchFilter,managerFilter,truckFilter,statusFilter,toggleLeads,toggleNearest].forEach(el=>el.addEventListener('change',render));
+    btnRefresh.addEventListener('click',loadData);
+    btnReset.addEventListener('click',()=>{
+      branchFilter.value=managerFilter.value=truckFilter.value=statusFilter.value='';
+      toggleLeads.checked=toggleNearest.checked=true;
+      render();
+    });
 
-    loadAndRender();
-    setInterval(loadAndRender,300000);
+    // Initialize
+    loadData();
   </script>
 </body>
 </html>
