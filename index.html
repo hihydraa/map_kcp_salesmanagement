@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- NEW: SheetJS for Excel export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     html, body { height: 100%; margin: 0; }
     #map { height: 100vh; width: 100vw; }
@@ -48,9 +50,11 @@
           <input id="toggleNearest" type="checkbox" class="rounded" checked /> คำนวณรถที่ใกล้สุดให้ Leads
         </label>
       </div>
-      <div class="flex gap-2">
+      <div class="flex gap-2 flex-wrap">
         <button id="btnRefresh" class="px-3 py-2 text-sm rounded-lg bg-gray-900 text-white">รีเฟรชข้อมูล</button>
         <button id="btnReset" class="px-3 py-2 text-sm rounded-lg border">ล้างตัวกรอง</button>
+        <!-- NEW: Export button -->
+        <button id="btnExport" class="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white">ส่งออก (Excel)</button>
       </div>
       <div class="rounded-xl border bg-white p-3">
         <div class="text-xs text-gray-500 mb-1">สรุป</div>
@@ -91,7 +95,7 @@
       if (!c) return "";
       const raw = String(c).trim().replace(/^#/, "");
       if (/^[0-9A-Fa-f]{6}$/.test(raw)) return "#" + raw.toUpperCase();
-      return ""; // ไม่ใช่รหัสสี 6 หลัก ให้ปล่อยว่าง
+      return "";
     };
     const normId = (id) => (id || "").toString().trim().toLowerCase();
 
@@ -130,7 +134,6 @@
     }
     function leadPinColor(statusText){
       const s = String(statusText || '').trim();
-      // ปิดการขาย -> เขียว #308320, อื่น ๆ -> แดง
       if (s === 'ปิดการขาย') return '#308320';
       return '#EF4444';
     }
@@ -227,17 +230,17 @@
       const cust = data.customers.filter(passFilters);
       const leads = (toggleLeads.checked? data.leads: []).filter(passFilters);
 
-      // Customers (ใช้สีจากชีท + opacity ชัดเจน)
+      // Customers
       cust.forEach(c=>{
         const lat=+ (c.latitude||c.lat||c.lattitude), lng=+ (c.longitude||c.lng||c.longtitude||c.lon);
         if(!isFinite(lat)||!isFinite(lng)) return;
         const col=getTruckColor(c.truck_id) || '#16a34a';
         const m = L.circleMarker([lat,lng],{
             radius:6,
-            color:'#111827',      // ขอบดำให้คอนทราสต์
+            color:'#111827',
             weight:1,
-            fillColor:col,        // สีจาก Google Sheet
-            fillOpacity:0.6       // opacity ชัดเจน
+            fillColor:col,
+            fillOpacity:0.6
           })
           .bindTooltip(tooltipHtml(c,'customer'),{className:'my',sticky:true})
           .addTo(layerCustomers);
@@ -286,7 +289,7 @@
         // สถานะลูกค้า → ไทย
         const customersData = customersRaw.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
 
-        // สร้างแผนที่สีรถ: key = truck_id (normalize), value = สีแบบ #RRGGBB
+        // สร้างแผนที่สีรถ
         truckColorMap = {};
         trucks.forEach(t=>{
           const key = normId(t.truck_id);
@@ -313,10 +316,92 @@
       }catch(err){ showError(err.message||String(err)); }
     }
 
+    // ---------- NEW: Export (filtered) to Excel ----------
+    function exportFilteredToExcel(){
+      try{
+        // 1) เก็บข้อมูลตามตัวกรองปัจจุบัน
+        const filteredCustomers = data.customers.filter(passFilters);
+        const filteredLeads = (toggleLeads.checked ? data.leads : []).filter(passFilters);
+
+        // 2) กำหนดคอลัมน์ที่ต้องการส่งออก (เรียงสวยงาม + ชื่ออ่านง่าย)
+        const customerColumns = [
+          ['customer_id','Customer ID'],
+          ['customer_name','ชื่อลูกค้า'],
+          ['_statusTH','สถานะลูกค้า (TH)'],
+          ['branch','สาขา'],
+          ['truck_id','รหัสรถมิเตอร์'],
+          ['manager_incharge','ผู้จัดการรับผิดชอบ'],
+          ['lastest_sales','ยอดขายล่าสุด'],
+          ['notes','หมายเหตุ'],
+          ['latitude','Latitude'],
+          ['longitude','Longitude']
+        ];
+        const leadColumns = [
+          ['leads_name','ชื่อลีด'],
+          ['status','สถานะลีด'],
+          ['branch','สาขา'],
+          ['saler','พนักงานขายผู้ดูแล'],
+          ['nearest_truck_id','รถที่ใกล้สุด'],
+          ['province','จังหวัด'],
+          ['district','อำเภอ/เขต'],
+          ['notes','หมายเหตุ'],
+          ['latitude','Latitude'],
+          ['longitude','Longitude']
+        ];
+
+        // 3) แปลงเป็นแถวข้อมูลตามหัวตาราง
+        const mapRows = (rows, columns) => {
+          return rows.map(r=>{
+            const obj={};
+            columns.forEach(([key,label])=>{
+              let v = r[key];
+              // ปัดเศษพิกัดให้สวยงาม (ถ้าเป็นตัวเลข)
+              if((key==='latitude'||key==='longitude') && v!==undefined && v!==null && v!==''){
+                const num = parseFloat(v);
+                v = isFinite(num) ? +num.toFixed(6) : '';
+              }
+              obj[label] = (v === undefined || v === null) ? '' : v;
+            });
+            return obj;
+          });
+        };
+
+        const customerData = mapRows(filteredCustomers, customerColumns);
+        const leadData = mapRows(filteredLeads, leadColumns);
+
+        // 4) สร้าง Workbook + Worksheet
+        const wb = XLSX.utils.book_new();
+        const wsCustomers = XLSX.utils.json_to_sheet(customerData, { origin: 'A1' });
+        const wsLeads = XLSX.utils.json_to_sheet(leadData, { origin: 'A1' });
+
+        // Auto-fit เฉพาะคร่าวๆ: กำหนดความกว้างคอลัมน์จากความยาว header
+        const fitCols = (columns) => columns.map(([,label])=>({ wch: Math.max(12, label.length + 4) }));
+        wsCustomers['!cols'] = fitCols(customerColumns);
+        wsLeads['!cols'] = fitCols(leadColumns);
+
+        XLSX.utils.book_append_sheet(wb, wsCustomers, 'Customers (filtered)');
+        XLSX.utils.book_append_sheet(wb, wsLeads, 'Leads (filtered)');
+
+        // 5) ตั้งชื่อไฟล์ตามตัวกรอง
+        const b=branchFilter.value || 'All';
+        const m=managerFilter.value || 'All';
+        const t=truckFilter.value || 'All';
+        const s=statusFilter.value || 'All';
+        const dateStr = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+        const filename = `KCP-Export_${dateStr}_B-${b}_M-${m}_T-${t}_S-${s}.xlsx`.replace(/[\\/:*?"<>|]+/g,'-');
+
+        XLSX.writeFile(wb, filename);
+      }catch(err){
+        showError('ไม่สามารถส่งออกเป็น Excel ได้: ' + (err.message || String(err)));
+      }
+    }
+
     // UI
     btnRefresh.onclick = ()=>loadAndRender(true);
     btnReset.onclick = ()=>{ [branchFilter,managerFilter,truckFilter,statusFilter].forEach(el=>el.value=""); render(); };
     [branchFilter,managerFilter,truckFilter,statusFilter,toggleLeads,toggleNearest].forEach(el=> el.addEventListener('change',render));
+    // NEW: bind export button
+    btnExport.onclick = exportFilteredToExcel;
 
     loadAndRender();
     setInterval(loadAndRender,300000);
