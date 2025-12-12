@@ -46,7 +46,7 @@
           </select>
         </label>
 
-        <!-- NEW: ตัวกรองรัศมี 100 กม. หลายสาขา (Multiple choice) -->
+        <!-- ตัวกรองรัศมี 100 กม. หลายสาขา (Multiple choice) -->
         <div class="col-span-2 text-xs text-gray-600">
           รัศมี 100 กม. รอบสาขา (เลือกได้หลายสาขา)
           <div class="mt-1 flex flex-wrap gap-2">
@@ -68,7 +68,6 @@
             </label>
           </div>
         </div>
-        <!-- END NEW -->
       </div>
 
       <div class="flex items-center gap-3">
@@ -113,6 +112,14 @@
       WNN: { lat: 17.6293190999291,   lng: 103.7676571040772 }
     };
     const RADIUS_FILTER_KM = 100;
+
+    // สีรัศมีแต่ละสาขา (stroke = สีขอบ, fill = สีพื้น)
+    const RADIUS_COLORS = {
+      ST:  { stroke: "#3b82f6", fill: "#3b82f6" }, // ฟ้า
+      KN:  { stroke: "#22c55e", fill: "#22c55e" }, // เขียว
+      MUK: { stroke: "#a855f7", fill: "#a855f7" }, // ม่วง
+      WNN: { stroke: "#ef4444", fill: "#ef4444" }  // แดง
+    };
 
     // -------- UTIL --------
     function showError(msg){
@@ -234,7 +241,7 @@
       </div>`;
     }
 
-    // NEW: ดึงรายการสาขาที่เลือกใน multiple choice
+    // ดึงรายการสาขาที่เลือกใน multiple choice
     function getSelectedRadiusBranches(){
       const nodes = document.querySelectorAll('.radiusChoice');
       return Array.from(nodes)
@@ -302,17 +309,19 @@
       layerLines.clearLayers();
       layerRadius.clearLayers();
 
-      // วาดวงกลมรัศมี 100 กม. ทุกสาขาที่ถูกเลือก
+      // วาดวงกลมรัศมี 100 กม. ทุกสาขาที่ถูกเลือก + สีประจำสาขา
       const selectedBranches = getSelectedRadiusBranches();
       selectedBranches.forEach(code=>{
         const c = BRANCH_RADIUS_CENTERS[code];
         if(!c) return;
+        const col = RADIUS_COLORS[code] || { stroke: "#0ea5e9", fill: "#0ea5e9" };
+
         L.circle([c.lat, c.lng], {
           radius: RADIUS_FILTER_KM * 1000,
-          color: '#0ea5e9',
+          color: col.stroke,
           weight: 2,
-          fillColor: '#0ea5e9',
-          fillOpacity: 0.05
+          fillColor: col.fill,
+          fillOpacity: 0.10
         }).addTo(layerRadius);
       });
 
