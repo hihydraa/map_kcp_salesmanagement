@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- NEW: SheetJS for Excel export -->
+  <!-- SheetJS for Excel export -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     html, body { height: 100%; margin: 0; }
@@ -46,16 +46,28 @@
           </select>
         </label>
 
-        <!-- NEW: ตัวกรองรัศมี 100 กม. รอบสาขา -->
-        <label class="text-xs text-gray-600 col-span-2">รัศมี 100 กม. รอบสาขา
-          <select id="radiusFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm">
-            <option value="">ปิด (ไม่ใช้ตัวกรองรัศมี)</option>
-            <option value="ST">ST</option>
-            <option value="KN">KN</option>
-            <option value="MUK">MUK</option>
-            <option value="WNN">WNN</option>
-          </select>
-        </label>
+        <!-- NEW: ตัวกรองรัศมี 100 กม. หลายสาขา (Multiple choice) -->
+        <div class="col-span-2 text-xs text-gray-600">
+          รัศมี 100 กม. รอบสาขา (เลือกได้หลายสาขา)
+          <div class="mt-1 flex flex-wrap gap-2">
+            <label class="inline-flex items-center gap-1">
+              <input type="checkbox" class="radiusChoice rounded" value="ST" />
+              <span class="text-xs">ST</span>
+            </label>
+            <label class="inline-flex items-center gap-1">
+              <input type="checkbox" class="radiusChoice rounded" value="KN" />
+              <span class="text-xs">KN</span>
+            </label>
+            <label class="inline-flex items-center gap-1">
+              <input type="checkbox" class="radiusChoice rounded" value="MUK" />
+              <span class="text-xs">MUK</span>
+            </label>
+            <label class="inline-flex items-center gap-1">
+              <input type="checkbox" class="radiusChoice rounded" value="WNN" />
+              <span class="text-xs">WNN</span>
+            </label>
+          </div>
+        </div>
         <!-- END NEW -->
       </div>
 
@@ -70,7 +82,6 @@
       <div class="flex gap-2 flex-wrap">
         <button id="btnRefresh" class="px-3 py-2 text-sm rounded-lg bg-gray-900 text-white">รีเฟรชข้อมูล</button>
         <button id="btnReset" class="px-3 py-2 text-sm rounded-lg border">ล้างตัวกรอง</button>
-        <!-- NEW: Export button -->
         <button id="btnExport" class="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white">ส่งออก (Excel)</button>
       </div>
       <div class="rounded-xl border bg-white p-3">
@@ -94,7 +105,7 @@
     const SHEET_ID = "1KicClhZHtMr9bBmwLv31zvb0021SRUcGr2eRRagsO6c";
     const SHEETS = { customers: "Customers", leads: "leads", trucks: "Trucks", settings: "Settings" };
 
-    // NEW: center แต่ละสาขา + รัศมี 100 กม.
+    // center แต่ละสาขา + รัศมี 100 กม.
     const BRANCH_RADIUS_CENTERS = {
       ST:  { lat: 16.381029272179042, lng: 103.34881852164082 },
       KN:  { lat: 16.71600409911031,  lng: 103.08205194412724 },
@@ -102,6 +113,7 @@
       WNN: { lat: 17.6293190999291,   lng: 103.7676571040772 }
     };
     const RADIUS_FILTER_KM = 100;
+
     // -------- UTIL --------
     function showError(msg){
       console.error(msg);
@@ -145,7 +157,7 @@
       return 2*R*Math.asin(Math.sqrt(h));
     };
 
-    // ── Google-style Pin (SVG) ─────────────────────────────
+    // Google-style Pin (SVG)
     function makePinIcon(colorHex){
       const c = (colorHex||'#EF4444').replace('#','');
       const svg = `
@@ -174,7 +186,6 @@
       return '#EF4444';
     }
 
-    // ---------- แปลงสถานะ (อังกฤษ -> ไทย) ----------
     function mapStatusTH(raw){
       if(raw==null) return "";
       const s = String(raw).trim();
@@ -223,26 +234,43 @@
       </div>`;
     }
 
+    // NEW: ดึงรายการสาขาที่เลือกใน multiple choice
+    function getSelectedRadiusBranches(){
+      const nodes = document.querySelectorAll('.radiusChoice');
+      return Array.from(nodes)
+        .filter(ch => ch.checked)
+        .map(ch => ch.value)
+        .filter(v => !!BRANCH_RADIUS_CENTERS[v]);
+    }
+
     function passFilters(item){
       const b = branchFilter.value;
       const m = managerFilter.value;
       const t = truckFilter.value;
       const s = statusFilter.value;
-      const r = radiusFilter.value; // NEW
+      const selectedBranches = getSelectedRadiusBranches();
 
       if(b && (item.branch||'')!==b) return false;
       if(m && (item.manager_incharge||'')!==m) return false;
       if(t && (item.truck_id||item.nearest_truck_id||'')!==t) return false;
       if(s && (item._statusTH||'')!==s) return false;
 
-      // NEW: กรองตามรัศมี 100 กม. รอบสาขา
-      if(r){
-        const center = BRANCH_RADIUS_CENTERS[r];
+      // ถ้ามีเลือกสาขารัศมี → ต้องอยู่ในอย่างน้อย 1 วง (OR)
+      if(selectedBranches.length){
         const lat = parseFloat(item.latitude||item.lat||item.lattitude);
         const lng = parseFloat(item.longitude||item.lng||item.longtitude||item.lon);
-        if(!center || !isFinite(lat) || !isFinite(lng)) return false;
-        const d = haversineKm(center.lat, center.lng, lat, lng);
-        if(d > RADIUS_FILTER_KM) return false;
+        if(!isFinite(lat) || !isFinite(lng)) return false;
+
+        let insideAny = false;
+        for(const code of selectedBranches){
+          const center = BRANCH_RADIUS_CENTERS[code];
+          const d = haversineKm(center.lat, center.lng, lat, lng);
+          if(d <= RADIUS_FILTER_KM){
+            insideAny = true;
+            break;
+          }
+        }
+        if(!insideAny) return false;
       }
 
       return true;
@@ -263,7 +291,7 @@
           layerLeads=L.layerGroup().addTo(map),
           layerTrucks=L.layerGroup().addTo(map),
           layerLines=L.layerGroup().addTo(map),
-          layerRadius=L.layerGroup().addTo(map); // NEW: layer วงกลมรัศมี
+          layerRadius=L.layerGroup().addTo(map);
 
     let data={customers:[],leads:[],trucks:[],settings:[]};
 
@@ -272,21 +300,21 @@
       layerLeads.clearLayers();
       layerTrucks.clearLayers();
       layerLines.clearLayers();
-      layerRadius.clearLayers(); // NEW
+      layerRadius.clearLayers();
 
-      // NEW: วาดวงกลมรัศมี 100 กม. ถ้ามีการเลือก
-      if(radiusFilter.value){
-        const c = BRANCH_RADIUS_CENTERS[radiusFilter.value];
-        if(c){
-          L.circle([c.lat, c.lng], {
-            radius: RADIUS_FILTER_KM * 1000,
-            color: '#0ea5e9',
-            weight: 2,
-            fillColor: '#0ea5e9',
-            fillOpacity: 0.05
-          }).addTo(layerRadius);
-        }
-      }
+      // วาดวงกลมรัศมี 100 กม. ทุกสาขาที่ถูกเลือก
+      const selectedBranches = getSelectedRadiusBranches();
+      selectedBranches.forEach(code=>{
+        const c = BRANCH_RADIUS_CENTERS[code];
+        if(!c) return;
+        L.circle([c.lat, c.lng], {
+          radius: RADIUS_FILTER_KM * 1000,
+          color: '#0ea5e9',
+          weight: 2,
+          fillColor: '#0ea5e9',
+          fillOpacity: 0.05
+        }).addTo(layerRadius);
+      });
 
       // Trucks
       data.trucks.forEach(t=>{
@@ -349,12 +377,10 @@
       layerCustomers.eachLayer(l=>all.push(l.getLatLng()));
       layerLeads.eachLayer(l=>all.push(l.getLatLng()));
       layerTrucks.eachLayer(l=>all.push(l.getLatLng()));
-
-      // NEW: ใส่ center ของวงกลมเข้าไปด้วย เพื่อให้ fitBounds แสดงวงกลมครบ
-      if(radiusFilter.value && BRANCH_RADIUS_CENTERS[radiusFilter.value]){
-        const c = BRANCH_RADIUS_CENTERS[radiusFilter.value];
-        all.push(L.latLng(c.lat, c.lng));
-      }
+      selectedBranches.forEach(code=>{
+        const c = BRANCH_RADIUS_CENTERS[code];
+        if(c) all.push(L.latLng(c.lat, c.lng));
+      });
 
       if(all.length) map.fitBounds(L.latLngBounds(all),{padding:[60,60]});
       setSummary({customers:cust,leads});
@@ -367,10 +393,8 @@
           fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
         ]);
 
-        // สถานะลูกค้า → ไทย
         const customersData = customersRaw.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
 
-        // สร้างแผนที่สีรถ
         truckColorMap = {};
         trucks.forEach(t=>{
           const key = normId(t.truck_id);
@@ -380,14 +404,12 @@
 
         data={settings, customers: customersData, leads, trucks};
 
-        // ตั้งค่า Center
         const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase()===key) || {}).value;
         const cLat = parseFloat(findVal('CENTER_LAT')||16.43),
               cLng = parseFloat(findVal('CENTER_LNG')||103.49),
               zoom = parseInt(findVal('ZOOM')||9);
         map.setView([cLat,cLng], zoom);
 
-        // ตัวเลือกในฟิลเตอร์
         const setOpts=(el,opts)=>{
           el.innerHTML='';
           el.append(new Option('ทั้งหมด',''));
@@ -401,14 +423,12 @@
       }catch(err){ showError(err.message||String(err)); }
     }
 
-    // ---------- NEW: Export (filtered) to Excel ----------
+    // Export (filtered) to Excel
     function exportFilteredToExcel(){
       try{
-        // 1) เก็บข้อมูลตามตัวกรองปัจจุบัน
         const filteredCustomers = data.customers.filter(passFilters);
         const filteredLeads = (toggleLeads.checked ? data.leads : []).filter(passFilters);
 
-        // 2) กำหนดคอลัมน์ที่ต้องการส่งออก (เรียงสวยงาม + ชื่ออ่านง่าย)
         const customerColumns = [
           ['customer_id','Customer ID'],
           ['customer_name','ชื่อลูกค้า'],
@@ -434,7 +454,6 @@
           ['longitude','Longitude']
         ];
 
-        // 3) แปลงเป็นแถวข้อมูลตามหัวตาราง
         const mapRows = (rows, columns) => {
           return rows.map(r=>{
             const obj={};
@@ -480,11 +499,18 @@
     // UI
     btnRefresh.onclick = ()=>loadAndRender(true);
     btnReset.onclick = ()=>{
-      [branchFilter,managerFilter,truckFilter,statusFilter,radiusFilter].forEach(el=>el.value="");
+      [branchFilter,managerFilter,truckFilter,statusFilter].forEach(el=>el.value="");
+      document.querySelectorAll('.radiusChoice').forEach(ch=>{ ch.checked=false; });
       render();
     };
-    [branchFilter,managerFilter,truckFilter,statusFilter,radiusFilter,toggleLeads,toggleNearest]
+
+    [branchFilter,managerFilter,truckFilter,statusFilter,toggleLeads,toggleNearest]
       .forEach(el=> el.addEventListener('change',render));
+    // radius multiple choice
+    document.querySelectorAll('.radiusChoice').forEach(el=>{
+      el.addEventListener('change', render);
+    });
+
     btnExport.onclick = exportFilteredToExcel;
 
     loadAndRender();
