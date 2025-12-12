@@ -12,7 +12,11 @@
   <style>
     html, body { height: 100%; margin: 0; }
     #map { height: 100vh; width: 100vw; }
-    .leaflet-tooltip.my { background:#111827; color:#fff; border:none; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.2); padding:6px 8px; }
+    .leaflet-tooltip.my {
+      background:#111827; color:#fff; border:none;
+      border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.2);
+      padding:6px 8px;
+    }
     .badge { padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; }
   </style>
 </head>
@@ -41,7 +45,20 @@
             <option value="ลูกค้าหาย">ลูกค้าหาย</option>
           </select>
         </label>
+
+        <!-- NEW: ตัวกรองรัศมี 100 กม. รอบสาขา -->
+        <label class="text-xs text-gray-600 col-span-2">รัศมี 100 กม. รอบสาขา
+          <select id="radiusFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm">
+            <option value="">ปิด (ไม่ใช้ตัวกรองรัศมี)</option>
+            <option value="ST">ST</option>
+            <option value="KN">KN</option>
+            <option value="MUK">MUK</option>
+            <option value="WNN">WNN</option>
+          </select>
+        </label>
+        <!-- END NEW -->
       </div>
+
       <div class="flex items-center gap-3">
         <label class="inline-flex items-center gap-2 text-sm">
           <input id="toggleLeads" type="checkbox" class="rounded" checked /> แสดง Leads
@@ -77,8 +94,22 @@
     const SHEET_ID = "1KicClhZHtMr9bBmwLv31zvb0021SRUcGr2eRRagsO6c";
     const SHEETS = { customers: "Customers", leads: "leads", trucks: "Trucks", settings: "Settings" };
 
+    // NEW: center แต่ละสาขา + รัศมี 100 กม.
+    const BRANCH_RADIUS_CENTERS = {
+      ST:  { lat: 16.381029272179042, lng: 103.34881852164082 },
+      KN:  { lat: 16.71600409911031,  lng: 103.08205194412724 },
+      MUK: { lat: 16.43599207530131,  lng: 104.61612804232725 },
+      WNN: { lat: 17.6293190999291,   lng: 103.7676571040772 }
+    };
+    const RADIUS_FILTER_KM = 100;
     // -------- UTIL --------
-    function showError(msg){ console.error(msg); const box=document.getElementById('errorBox'); box.textContent=msg; box.classList.remove('hidden'); }
+    function showError(msg){
+      console.error(msg);
+      const box=document.getElementById('errorBox');
+      box.textContent=msg;
+      box.classList.remove('hidden');
+    }
+
     async function fetchSheet(sheetName) {
       const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&tq=`;
       const res = await fetch(url, { cache: "no-store" });
@@ -107,7 +138,12 @@
 
     const uniqueSorted = (arr) => [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'));
     const gmapsUrl = (lat,lng) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lat+","+lng)}`;
-    const haversineKm=(a,b,c,d)=>{const R=6371,toRad=x=>x*Math.PI/180;const dLat=toRad(c-a),dLon=toRad(d-b);const h=Math.sin(dLat/2)**2+Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(h));};
+    const haversineKm=(a,b,c,d)=>{
+      const R=6371,toRad=x=>x*Math.PI/180;
+      const dLat=toRad(c-a),dLon=toRad(d-b);
+      const h=Math.sin(dLat/2)**2+Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLon/2)**2;
+      return 2*R*Math.asin(Math.sqrt(h));
+    };
 
     // ── Google-style Pin (SVG) ─────────────────────────────
     function makePinIcon(colorHex){
@@ -188,11 +224,27 @@
     }
 
     function passFilters(item){
-      const b=branchFilter.value, m=managerFilter.value, t=truckFilter.value, s=statusFilter.value;
+      const b = branchFilter.value;
+      const m = managerFilter.value;
+      const t = truckFilter.value;
+      const s = statusFilter.value;
+      const r = radiusFilter.value; // NEW
+
       if(b && (item.branch||'')!==b) return false;
       if(m && (item.manager_incharge||'')!==m) return false;
       if(t && (item.truck_id||item.nearest_truck_id||'')!==t) return false;
       if(s && (item._statusTH||'')!==s) return false;
+
+      // NEW: กรองตามรัศมี 100 กม. รอบสาขา
+      if(r){
+        const center = BRANCH_RADIUS_CENTERS[r];
+        const lat = parseFloat(item.latitude||item.lat||item.lattitude);
+        const lng = parseFloat(item.longitude||item.lng||item.longtitude||item.lon);
+        if(!center || !isFinite(lat) || !isFinite(lng)) return false;
+        const d = haversineKm(center.lat, center.lng, lat, lng);
+        if(d > RADIUS_FILTER_KM) return false;
+      }
+
       return true;
     }
 
@@ -210,12 +262,31 @@
     const layerCustomers=L.layerGroup().addTo(map),
           layerLeads=L.layerGroup().addTo(map),
           layerTrucks=L.layerGroup().addTo(map),
-          layerLines=L.layerGroup().addTo(map);
+          layerLines=L.layerGroup().addTo(map),
+          layerRadius=L.layerGroup().addTo(map); // NEW: layer วงกลมรัศมี
 
     let data={customers:[],leads:[],trucks:[],settings:[]};
 
     function render(){
-      layerCustomers.clearLayers();layerLeads.clearLayers();layerTrucks.clearLayers();layerLines.clearLayers();
+      layerCustomers.clearLayers();
+      layerLeads.clearLayers();
+      layerTrucks.clearLayers();
+      layerLines.clearLayers();
+      layerRadius.clearLayers(); // NEW
+
+      // NEW: วาดวงกลมรัศมี 100 กม. ถ้ามีการเลือก
+      if(radiusFilter.value){
+        const c = BRANCH_RADIUS_CENTERS[radiusFilter.value];
+        if(c){
+          L.circle([c.lat, c.lng], {
+            radius: RADIUS_FILTER_KM * 1000,
+            color: '#0ea5e9',
+            weight: 2,
+            fillColor: '#0ea5e9',
+            fillOpacity: 0.05
+          }).addTo(layerRadius);
+        }
+      }
 
       // Trucks
       data.trucks.forEach(t=>{
@@ -274,7 +345,17 @@
         }
       });
 
-      const all=[]; layerCustomers.eachLayer(l=>all.push(l.getLatLng())); layerLeads.eachLayer(l=>all.push(l.getLatLng())); layerTrucks.eachLayer(l=>all.push(l.getLatLng()));
+      const all=[];
+      layerCustomers.eachLayer(l=>all.push(l.getLatLng()));
+      layerLeads.eachLayer(l=>all.push(l.getLatLng()));
+      layerTrucks.eachLayer(l=>all.push(l.getLatLng()));
+
+      // NEW: ใส่ center ของวงกลมเข้าไปด้วย เพื่อให้ fitBounds แสดงวงกลมครบ
+      if(radiusFilter.value && BRANCH_RADIUS_CENTERS[radiusFilter.value]){
+        const c = BRANCH_RADIUS_CENTERS[radiusFilter.value];
+        all.push(L.latLng(c.lat, c.lng));
+      }
+
       if(all.length) map.fitBounds(L.latLngBounds(all),{padding:[60,60]});
       setSummary({customers:cust,leads});
     }
@@ -307,7 +388,11 @@
         map.setView([cLat,cLng], zoom);
 
         // ตัวเลือกในฟิลเตอร์
-        const setOpts=(el,opts)=>{ el.innerHTML=''; el.append(new Option('ทั้งหมด','')); opts.forEach(o=>el.append(new Option(o,o))); };
+        const setOpts=(el,opts)=>{
+          el.innerHTML='';
+          el.append(new Option('ทั้งหมด',''));
+          opts.forEach(o=>el.append(new Option(o,o)));
+        };
         setOpts(branchFilter,  uniqueSorted([ ...customersData.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
         setOpts(managerFilter, uniqueSorted([ ...customersData.map(c=>c.manager_incharge), ...trucks.map(t=>t.manager_incharge) ]));
         setOpts(truckFilter,   uniqueSorted(trucks.map(t=>t.truck_id)));
@@ -355,7 +440,6 @@
             const obj={};
             columns.forEach(([key,label])=>{
               let v = r[key];
-              // ปัดเศษพิกัดให้สวยงาม (ถ้าเป็นตัวเลข)
               if((key==='latitude'||key==='longitude') && v!==undefined && v!==null && v!==''){
                 const num = parseFloat(v);
                 v = isFinite(num) ? +num.toFixed(6) : '';
@@ -369,12 +453,10 @@
         const customerData = mapRows(filteredCustomers, customerColumns);
         const leadData = mapRows(filteredLeads, leadColumns);
 
-        // 4) สร้าง Workbook + Worksheet
         const wb = XLSX.utils.book_new();
         const wsCustomers = XLSX.utils.json_to_sheet(customerData, { origin: 'A1' });
         const wsLeads = XLSX.utils.json_to_sheet(leadData, { origin: 'A1' });
 
-        // Auto-fit เฉพาะคร่าวๆ: กำหนดความกว้างคอลัมน์จากความยาว header
         const fitCols = (columns) => columns.map(([,label])=>({ wch: Math.max(12, label.length + 4) }));
         wsCustomers['!cols'] = fitCols(customerColumns);
         wsLeads['!cols'] = fitCols(leadColumns);
@@ -382,7 +464,6 @@
         XLSX.utils.book_append_sheet(wb, wsCustomers, 'Customers (filtered)');
         XLSX.utils.book_append_sheet(wb, wsLeads, 'Leads (filtered)');
 
-        // 5) ตั้งชื่อไฟล์ตามตัวกรอง
         const b=branchFilter.value || 'All';
         const m=managerFilter.value || 'All';
         const t=truckFilter.value || 'All';
@@ -398,9 +479,12 @@
 
     // UI
     btnRefresh.onclick = ()=>loadAndRender(true);
-    btnReset.onclick = ()=>{ [branchFilter,managerFilter,truckFilter,statusFilter].forEach(el=>el.value=""); render(); };
-    [branchFilter,managerFilter,truckFilter,statusFilter,toggleLeads,toggleNearest].forEach(el=> el.addEventListener('change',render));
-    // NEW: bind export button
+    btnReset.onclick = ()=>{
+      [branchFilter,managerFilter,truckFilter,statusFilter,radiusFilter].forEach(el=>el.value="");
+      render();
+    };
+    [branchFilter,managerFilter,truckFilter,statusFilter,radiusFilter,toggleLeads,toggleNearest]
+      .forEach(el=> el.addEventListener('change',render));
     btnExport.onclick = exportFilteredToExcel;
 
     loadAndRender();
