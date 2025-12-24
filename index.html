@@ -436,6 +436,15 @@ html, body { height: 100%; margin: 0; }
         .filter(v => !!BRANCH_RADIUS_CENTERS[v]);
     }
 
+        const STATUS_CODE_TO_TH = {
+      ACTIVE: "ลูกค้า Active",
+      RISKY: "เสี่ยงที่จะเป็นลูกค้าหาย",
+      LOST: "ลูกค้าหาย",
+      WINBACK: "Winback/New",
+      DORMANT: "Dormant>60",
+    };
+
+
     function passFilters(item){
       const b = branchFilter.value;
       const m = managerFilter.value;
@@ -446,7 +455,11 @@ html, body { height: 100%; margin: 0; }
       if(b && (item.branch||'')!==b) return false;
       if(m && (item.person_incharge||'')!==m) return false;
       if(t && (item.truck_id||item.nearest_truck_id||'')!==t) return false;
-      if(s && (item._statusTH||'')!==s) return false;
+      if (s) {
+        const wantTH = STATUS_CODE_TO_TH[s] || s;
+        if ((item._statusTH || "") !== wantTH) return false;
+      }
+
 
       // ถ้ามีเลือกสาขารัศมี → ต้องอยู่ในอย่างน้อย 1 วง (OR)
       if(selectedBranches.length){
