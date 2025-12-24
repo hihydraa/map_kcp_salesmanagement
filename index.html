@@ -7,9 +7,10 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <!-- SheetJS for Excel export -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Chart.js for Dashboard charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     
     html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
@@ -43,7 +44,7 @@ html, body { height: 100%; margin: 0; }
         <label class="text-xs text-gray-600">สาขา (Branch)
           <select id="branchFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
         </label>
-        <label class="text-xs text-gray-600">ผู้รับผิดชอบ
+        <label class="text-xs text-gray-600">ผู้จัดการมิเตอร์ (Manager)
           <select id="managerFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
         </label>
         <label class="text-xs text-gray-600">รถมิเตอร์ (Truck)
@@ -103,6 +104,8 @@ html, body { height: 100%; margin: 0; }
           <div>ลูกค้า Active:</div><div id="sumActive" class="font-semibold">-</div>
           <div>เสี่ยงที่จะเป็นลูกค้าหาย:</div><div id="sumRisky" class="font-semibold">-</div>
           <div>ลูกค้าหาย:</div><div id="sumLost" class="font-semibold">-</div>
+          <div>Winback/New:</div><div id="sumWinback" class="font-semibold">-</div>
+          <div>Dormant >60:</div><div id="sumDormant" class="font-semibold">-</div>
         </div>
         <div id="errorBox" class="text-xs text-red-600 mt-2 hidden"></div>
       </div>
@@ -124,16 +127,11 @@ html, body { height: 100%; margin: 0; }
             <label class="text-xs text-gray-600">ผู้รับผิดชอบ (Dataset)</label>
             <select id="crmOwnerFilter" class="w-full mt-1 rounded-xl border-gray-300 text-sm"></select>
           </div>
-          <div class="w-72">
-            <label class="text-xs text-gray-600">ช่วงวันที่ (กำหนดเอง) • Default = ทั้งหมด</label>
-            <div class="mt-1 grid grid-cols-2 gap-2">
-              <input id="dashStartDate" type="date" class="w-full rounded-xl border-gray-300 text-sm px-3 py-2" />
-              <input id="dashEndDate" type="date" class="w-full rounded-xl border-gray-300 text-sm px-3 py-2" />
-            </div>
-          </div>
           <button id="btnDashRefresh" class="px-4 py-2 text-sm rounded-xl bg-gray-900 text-white shadow">รีเฟรช</button>
         </div>
       </div>
+
+      <div id="dashErrorBox" class="hidden mb-4 rounded-2xl border border-red-200 bg-red-50 text-red-700 text-sm p-3"></div>
 
       <!-- KPI cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
@@ -182,26 +180,7 @@ html, body { height: 100%; margin: 0; }
         </div>
       </div>
 
-      
-      <!-- Customers Visualize (from Customers sheet) -->
-      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
-        <div class="rounded-2xl border bg-white p-4 shadow-sm">
-          <div class="flex items-end justify-between mb-2">
-            <div class="font-bold text-gray-900">Customers: สถานะลูกค้า</div>
-            <div class="text-xs text-gray-400">Source: Google Sheet (Customers)</div>
-          </div>
-          <div class="h-72"><canvas id="chartCustomerStatus"></canvas></div>
-        </div>
-        <div class="rounded-2xl border bg-white p-4 shadow-sm">
-          <div class="flex items-end justify-between mb-2">
-            <div class="font-bold text-gray-900">Top รถที่เสี่ยง/หาย (Risky+Lost)</div>
-            <div class="text-xs text-gray-400">อิงช่วงวันที่ที่เลือก</div>
-          </div>
-          <div class="h-72"><canvas id="chartTruckRisk"></canvas></div>
-        </div>
-      </div>
-
-<!-- Truck summary -->
+      <!-- Truck summary -->
       <div class="rounded-2xl border bg-white p-4 shadow-sm">
         <div class="flex items-end justify-between gap-3 mb-2">
           <div>
@@ -265,6 +244,23 @@ html, body { height: 100%; margin: 0; }
       const box=document.getElementById('errorBox');
       box.textContent=msg;
       box.classList.remove('hidden');
+    }
+
+    function showDashError(msg){
+      console.error(msg);
+      const box=document.getElementById('dashErrorBox');
+      if(box){
+        box.textContent=msg;
+        box.classList.remove('hidden');
+      }
+    }
+
+    function clearDashError(){
+      const box=document.getElementById('dashErrorBox');
+      if(box){
+        box.textContent='';
+        box.classList.add('hidden');
+      }
     }
 
     async function fetchSheet(sheetName, sheetId = SHEET_ID) {
@@ -331,69 +327,27 @@ html, body { height: 100%; margin: 0; }
       return '#EF4444';
     }
 
-
-     // ✅ Map customer status (จากชีท Customers.status) -> TH
     function mapStatusTH(raw){
       if(raw==null) return "";
       const s = String(raw).trim();
       const sl = s.toLowerCase();
-
       if (sl === 'active') return 'ลูกค้า Active';
       if (sl === 'risky to lost') return 'เสี่ยงที่จะเป็นลูกค้าหาย';
       if (sl === 'lost customer') return 'ลูกค้าหาย';
-
-      if (sl === 'winback/new customer' || sl === 'winback' || sl === 'new customer' || sl === 'new')
-        return 'ลูกค้ากลับมา/ลูกค้าใหม่';
-
-      if (sl === 'dormant >60' || sl === 'dormant' || sl === 'deep lost' || sl === 'lost >60')
-        return 'หายเกิน 60 วัน';
-
       if (s === 'ลูกค้า active') return 'ลูกค้า Active';
       return s;
     }
 
-   
-    const FIELD_LABELS = {
-  customer_id: "รหัสลูกค้า",
-  customer_name: "ชื่อลูกค้า",
-  _statusTH: "สถานะลูกค้า",
-  branch: "สาขา",
-  truck_id: "รถ",
-  person_incharge: "ผู้รับผิดชอบ",
-  lastest_sales: "บิลขายล่าสุด",
-  notes: "หมายเหตุ",
-  latitude: "Latitude",
-  longitude: "Longtitude",
-
-  // Leads (เผื่อใช้)
-  lead_id: "รหัส Lead",
-  leads_name: "ชื่อลีด",
-  status: "สถานะ Lead",
-  saler: "พนักงานขาย",
-  province: "จังหวัด",
-  district: "อำเภอ",
-  nearest_truck_id: "รถที่ใกล้ที่สุด"
-};
-
-  
-  function buildRowsHtml(obj, fields){
-    return fields
-      .filter(k => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "")
-      .map(k => `<tr>
-        <td class="pr-2 text-slate-300 whitespace-nowrap">
-          ${FIELD_LABELS[k] || k}
-        </td>
-        <td class="font-semibold text-white">
-          ${obj[k]}
-        </td>
-      </tr>`)
-      .join('');
-  }
-  
+    function buildRowsHtml(obj, fields){
+      return fields
+        .filter(k => obj[k] !== undefined && obj[k] !== null && obj[k] !== "")
+        .map(k => `<tr><td class="pr-2 text-gray-500">${k}</td><td class="font-semibold">${obj[k]}</td></tr>`)
+        .join('');
+    }
 
     function tooltipHtml(obj,type){
       const fields = (type==='customer')
-        ? ['customer_id','customer_name','lastest_sales','_statusTH','branch','truck_id','person_incharge','notes']
+        ? ['customer_id','customer_name','lastest_sales','_statusTH','branch','truck_id','manager_incharge','notes']
         : ['leads_name','status','province','district','nearest_truck_id','saler','branch','notes'];
       const rows = buildRowsHtml(obj, fields);
       const badge= type==='customer'
@@ -409,7 +363,7 @@ html, body { height: 100%; margin: 0; }
       const lat = parseFloat(obj.latitude||obj.lat||obj.lattitude);
       const lng = parseFloat(obj.longitude||obj.lng||obj.longtitude||obj.lon);
       const fields = (type==='customer')
-        ? ['customer_id','customer_name','lastest_sales','_statusTH','branch','truck_id','person_incharge','notes']
+        ? ['customer_id','customer_name','lastest_sales','_statusTH','branch','truck_id','manager_incharge','notes']
         : ['leads_name','status','province','district','nearest_truck_id','saler','branch','notes'];
       const rows = buildRowsHtml(obj, fields);
       const gmBtn = (isFinite(lat)&&isFinite(lng))
@@ -438,7 +392,7 @@ html, body { height: 100%; margin: 0; }
       const selectedBranches = getSelectedRadiusBranches();
 
       if(b && (item.branch||'')!==b) return false;
-      if(m && (item.person_incharge||'')!==m) return false;
+      if(m && (item.manager_incharge||'')!==m) return false;
       if(t && (item.truck_id||item.nearest_truck_id||'')!==t) return false;
       if(s && (item._statusTH||'')!==s) return false;
 
@@ -469,7 +423,6 @@ html, body { height: 100%; margin: 0; }
       sumActive.textContent = customers.filter(c => (c._statusTH||'')==='ลูกค้า Active').length;
       sumRisky.textContent  = customers.filter(c => (c._statusTH||'')==='เสี่ยงที่จะเป็นลูกค้าหาย').length;
       sumLost.textContent   = customers.filter(c => (c._statusTH||'')==='ลูกค้าหาย').length;
-       // ✅ เพิ่ม 2 สถานะใหม่
       sumWinback.textContent = customers.filter(c => (c._statusTH||'')==='ลูกค้ากลับมา/ลูกค้าใหม่').length;
       sumDormant.textContent = customers.filter(c => (c._statusTH||'')==='หายเกิน 60 วัน').length;
     }
@@ -484,6 +437,9 @@ html, body { height: 100%; margin: 0; }
           layerRadius=L.layerGroup().addTo(map);
 
     let data={customers:[],leads:[],trucks:[],settings:[]};
+
+    // keep customers in a global-scope variable for Dashboard tab
+    let customersData = [];
 
     function render(){
       layerCustomers.clearLayers();
@@ -585,7 +541,7 @@ html, body { height: 100%; margin: 0; }
           fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
         ]);
 
-        const customersData = customersRaw.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
+        customersData = customersRaw.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
 
         truckColorMap = {};
         trucks.forEach(t=>{
@@ -608,7 +564,7 @@ html, body { height: 100%; margin: 0; }
           opts.forEach(o=>el.append(new Option(o,o)));
         };
         setOpts(branchFilter,  uniqueSorted([ ...customersData.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
-        setOpts(managerFilter, uniqueSorted([ ...customersData.map(c=>c.person_incharge), ...trucks.map(t=>t.person_incharge) ]));
+        setOpts(managerFilter, uniqueSorted([ ...customersData.map(c=>c.manager_incharge), ...trucks.map(t=>t.manager_incharge) ]));
         setOpts(truckFilter,   uniqueSorted(trucks.map(t=>t.truck_id)));
 
         render();
@@ -627,7 +583,7 @@ html, body { height: 100%; margin: 0; }
           ['_statusTH','สถานะลูกค้า (TH)'],
           ['branch','สาขา'],
           ['truck_id','รหัสรถมิเตอร์'],
-          ['person_incharge','ผู้รับผิดชอบ'],
+          ['manager_incharge','ผู้จัดการรับผิดชอบ'],
           ['lastest_sales','ยอดขายล่าสุด'],
           ['notes','หมายเหตุ'],
           ['latitude','Latitude'],
@@ -739,8 +695,6 @@ html, body { height: 100%; margin: 0; }
   // Dashboard (CRM Dataset)
   // -----------------------------
   const crmOwnerFilter = document.getElementById('crmOwnerFilter');
-  const dashStartDate = document.getElementById('dashStartDate');
-  const dashEndDate = document.getElementById('dashEndDate');
   const btnDashRefresh = document.getElementById('btnDashRefresh');
 
   const kpiTaskTotal = document.getElementById('kpiTaskTotal');
@@ -754,8 +708,9 @@ html, body { height: 100%; margin: 0; }
   const kpiLeadWon = document.getElementById('kpiLeadWon');
 
   const truckTableBody = document.getElementById('truckTableBody');
+    const dashErrorBox = document.getElementById('dashErrorBox');
 
-  let chartTaskStatus, chartLeadStatus, chartTaskContact, chartTaskChannel, chartCustomerStatus, chartTruckRisk;
+  let chartTaskStatus, chartLeadStatus, chartTaskContact, chartTaskChannel;
 
   const CRM_COLS = {
     id: "Unique_ID",
@@ -781,49 +736,6 @@ html, body { height: 100%; margin: 0; }
     return d === "TRUE" || ws === "เสร็จ" || ws === "สำเร็จ";
   }
   function pct(a,b){ return (b ? (a/b*100) : 0).toFixed(2) + "%"; }
-
-  function parseDateFlexible(v){
-    const s = norm(v);
-    if(!s) return null;
-    // Accept Date object
-    if(v instanceof Date) return isNaN(v.getTime())?null:v;
-    // yyyy-mm-dd
-    const m1 = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if(m1){
-      const d = new Date(Number(m1[1]), Number(m1[2])-1, Number(m1[3]));
-      return isNaN(d.getTime())?null:d;
-    }
-    // mm/dd/yyyy
-    const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if(m2){
-      const d = new Date(Number(m2[3]), Number(m2[1])-1, Number(m2[2]));
-      return isNaN(d.getTime())?null:d;
-    }
-    // dd/mm/yyyy (fallback)
-    const m3 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if(m3){
-      // ambiguous; treat as dd/mm if first part > 12
-      const a=Number(m3[1]), b=Number(m3[2]), y=Number(m3[3]);
-      const d = (a>12) ? new Date(y, b-1, a) : new Date(y, a-1, b);
-      return isNaN(d.getTime())?null:d;
-    }
-    const d = new Date(s);
-    return isNaN(d.getTime())?null:d;
-  }
-
-  function getDashDateRange(){
-    const s = dashStartDate?.value ? new Date(dashStartDate.value) : null;
-    const e = dashEndDate?.value ? new Date(dashEndDate.value) : null;
-    if(e) e.setHours(23,59,59,999);
-    return { start:s, end:e };
-  }
-
-  function inRange(d, start, end){
-    if(!d) return false;
-    if(start && d < start) return false;
-    if(end && d > end) return false;
-    return true;
-  }
 
   function destroyChart(c){ try{ c?.destroy?.(); }catch(e){} }
 
@@ -870,6 +782,8 @@ html, body { height: 100%; margin: 0; }
 
   async function loadDash(skipInit){
     try{
+      clearDashError();
+      if(dashErrorBox){ dashErrorBox.classList.add("hidden"); dashErrorBox.textContent=""; }
       const dataset = await fetchSheet(CRM_SHEETS.dataset, CRM_SHEET_ID);
 
       // owner options
@@ -881,15 +795,7 @@ html, body { height: 100%; margin: 0; }
       }
 
       const ownerSel = crmOwnerFilter.value;
-      let rows = ownerSel ? dataset.filter(r=>norm(r[CRM_COLS.owner])===ownerSel) : dataset;
-      // date range filter (Dataset uses 'วันที่ต้องทำ')
-      const dr = getDashDateRange();
-      if(dr.start || dr.end){
-        rows = rows.filter(r=>{
-          const d = parseDateFlexible(r[CRM_COLS.due]);
-          return inRange(d, dr.start, dr.end);
-        });
-      }
+      const rows = ownerSel ? dataset.filter(r=>norm(r[CRM_COLS.owner])===ownerSel) : dataset;
 
       const tasks = rows.filter(r=>!isLeadRow(r));
       const leads = rows.filter(r=>isLeadRow(r));
@@ -965,74 +871,23 @@ html, body { height: 100%; margin: 0; }
         }
       });
 
-      // Customers Visualize + Truck summary (from Map Customers)
-      const customersAll = (typeof data!=='undefined' && data && Array.isArray(data.customers)) ? data.customers : [];
-      // date range filter (Customers uses 'lastest_sales')
-      let customers = customersAll;
-      if(dr.start || dr.end){
-        customers = customersAll.filter(c=>{
-          const d = parseDateFlexible(c.lastest_sales);
-          return inRange(d, dr.start, dr.end);
-        });
+      // Truck summary from already-loaded customers (map sheet)
+      if(!window.data || !window.data.customers){
+        await loadAndRender();
       }
-      renderCustomerVisuals(customers);
-      renderTruckSummary(customers);
+      renderTruckSummary((window.data && window.data.customers) ? window.data.customers : []);
 
     }catch(err){
-      showError("Dashboard error: " + (err.message||String(err)));
+      console.error(err);
+      if(dashErrorBox){ dashErrorBox.textContent = "Dashboard error: " + (err.message||String(err)); dashErrorBox.classList.remove("hidden"); }
     }
   }
 
   btnDashRefresh.addEventListener('click', ()=>loadDash(true));
   crmOwnerFilter.addEventListener('change', ()=>loadDash(true));
-  dashStartDate?.addEventListener('change', ()=>loadDash(true));
-  dashEndDate?.addEventListener('change', ()=>loadDash(true));
 
-  
-  function renderCustomerVisuals(customers){
-    // Status counts (TH)
-    const counts = { "ลูกค้า Active":0, "เสี่ยงที่จะเป็นลูกค้าหาย":0, "ลูกค้าหาย":0, "ลูกค้ากลับมา/ลูกค้าใหม่":0, "หายเกิน 60 วัน":0, "อื่นๆ":0 };
-    customers.forEach(c=>{
-      const st = norm(c._statusTH);
-      if(counts[st]!=null) counts[st]++; else counts["อื่นๆ"]++;
-    });
-    const labels = Object.keys(counts);
-    const values = labels.map(k=>counts[k]);
-
-    destroyChart(chartCustomerStatus);
-    chartCustomerStatus = makeDoughnut('chartCustomerStatus', labels, values);
-
-    // Top truck Risky+Lost
-    const m = new Map();
-    customers.forEach(c=>{
-      const truck = norm(c.truck_id);
-      if(!truck) return;
-      const st = norm(c._statusTH);
-      const inc = (st==="เสี่ยงที่จะเป็นลูกค้าหาย" || st==="ลูกค้าหาย") ? 1 : 0;
-      if(!inc) return;
-      m.set(truck, (m.get(truck)||0)+1);
-    });
-    const arr = [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
-    const tLabels = arr.map(x=>x[0]);
-    const tValues = arr.map(x=>x[1]);
-
-    destroyChart(chartTruckRisk);
-    chartTruckRisk = makeBar('chartTruckRisk', tLabels, tValues);
-  }
-
-function renderTruckSummary(customers){
+  function renderTruckSummary(customers){
     const byTruck = {};
-    // init all trucks from Trucks sheet so table shows every truck
-    const trucksAll = (typeof data!=='undefined' && data && Array.isArray(data.trucks)) ? data.trucks : [];
-    trucksAll.forEach(t=>{
-      const truck = norm(t.truck_id);
-      if(!truck) return;
-      if(!byTruck[truck]){
-        byTruck[truck] = { truck, total:0, active:0, risky:0, lost:0, winback:0, dormant:0, owners:{} };
-        const owner = norm(t.person_incharge);
-        if(owner) byTruck[truck].owners[owner] = (byTruck[truck].owners[owner]||0)+1;
-      }
-    });
     customers.forEach(c=>{
       const truck = norm(c.truck_id);
       if(!truck) return;
