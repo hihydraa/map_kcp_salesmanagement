@@ -12,8 +12,10 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     
-    html, body { height: 100%; margin: 0; padding: 0; }
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
     #map { position: fixed; inset: 0; height: 100vh; width: 100vw; }
+html, body { height: 100%; margin: 0; }
+    #map { height: 100vh; width: 100vw; }
     .leaflet-tooltip.my {
       background:#111827; color:#fff; border:none;
       border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.2);
@@ -271,30 +273,6 @@
       box.classList.remove('hidden');
     }
 
-    
-    // -------- DOM Elements (bind explicitly; do NOT rely on id->global) --------
-    const branchFilter = document.getElementById('branchFilter');
-    const managerFilter = document.getElementById('managerFilter');
-    const truckFilter = document.getElementById('truckFilter');
-    const statusFilter = document.getElementById('statusFilter');
-
-    const toggleLeads = document.getElementById('toggleLeads');
-    const toggleNearest = document.getElementById('toggleNearest');
-
-    const btnRefresh = document.getElementById('btnRefresh');
-    const btnReset = document.getElementById('btnReset');
-    const btnExport = document.getElementById('btnExport');
-
-    const sumCustomers = document.getElementById('sumCustomers');
-    const sumLeads = document.getElementById('sumLeads');
-    const sumActive = document.getElementById('sumActive');
-    const sumRisky = document.getElementById('sumRisky');
-    const sumLost = document.getElementById('sumLost');
-    const sumWinback = document.getElementById('sumWinback');
-    const sumDormant = document.getElementById('sumDormant');
-
-    const errorBox = document.getElementById('errorBox');
-
     async function fetchSheet(sheetName, sheetId = SHEET_ID) {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&tq=`;
   const res = await fetch(url, { cache: "no-store" });
@@ -466,23 +444,25 @@
       DORMANT: "Dormant>60",
     };
 
-    
+
     function passFilters(item){
       const b = branchFilter.value;
       const m = managerFilter.value;
       const t = truckFilter.value;
-      const s = statusFilter.value; // ACTIVE/RISKY/LOST/WINBACK/DORMANT
+      const s = statusFilter.value;
       const selectedBranches = getSelectedRadiusBranches();
 
-      if (b && (item.branch||'') !== b) return false;
-      if (m && (item.person_incharge||'') !== m) return false;
-      if (t && (item.truck_id || item.nearest_truck_id || '') !== t) return false;
+      if(b && (item.branch||'')!==b) return false;
+      if(m && (item.person_incharge||'')!==m) return false;
+      if(t && (item.truck_id||item.nearest_truck_id||'')!==t) return false;
+      if (s) {
+        const wantTH = STATUS_CODE_TO_TH[s] || s;
+        if ((item._statusTH || "") !== wantTH) return false;
+      }
 
-      // ✅ กรองสถานะด้วย "รหัส" (_statusCode) ที่เราสร้างให้ตอนโหลดข้อมูล
-      if (s && (item._statusCode || '') !== s) return false;
 
-      // ✅ ถ้ามีเลือกสาขารัศมี → ต้องอยู่ในอย่างน้อย 1 วง (OR)
-      if (selectedBranches.length){
+      // ถ้ามีเลือกสาขารัศมี → ต้องอยู่ในอย่างน้อย 1 วง (OR)
+      if(selectedBranches.length){
         const lat = parseFloat(item.latitude||item.lat||item.lattitude);
         const lng = parseFloat(item.longitude||item.lng||item.longtitude||item.lon);
         if(!isFinite(lat) || !isFinite(lng)) return false;
@@ -491,14 +471,16 @@
         for(const code of selectedBranches){
           const center = BRANCH_RADIUS_CENTERS[code];
           const d = haversineKm(center.lat, center.lng, lat, lng);
-          if(d <= RADIUS_FILTER_KM){ insideAny = true; break; }
+          if(d <= RADIUS_FILTER_KM){
+            insideAny = true;
+            break;
+          }
         }
         if(!insideAny) return false;
       }
 
       return true;
     }
-
 
     function setSummary({customers, leads}){
       sumCustomers.textContent = customers.length;
@@ -621,8 +603,84 @@
         const [settings, customersRaw, leads, trucks] = await Promise.all([
           fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
         ]);
-        const customerData = mapRows(filteredCustomers, customerColumns);
 
+        const customersData = customersRaw.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
+
+        truckColorMap = {};
+        trucks.forEach(t=>{
+          const key = normId(t.truck_id);
+          const col = normHex(t.color);
+          if (key && col) truckColorMap[key] = col;
+        });
+
+        data={settings, customers: customersData, leads, trucks};
+
+        const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase()===key) || {}).value;
+        const cLat = parseFloat(findVal('CENTER_LAT')||16.43),
+              cLng = parseFloat(findVal('CENTER_LNG')||103.49),
+              zoom = parseInt(findVal('ZOOM')||9);
+        map.setView([cLat,cLng], zoom);
+
+        const setOpts=(el,opts)=>{
+          el.innerHTML='';
+          el.append(new Option('ทั้งหมด',''));
+          opts.forEach(o=>el.append(new Option(o,o)));
+        };
+        setOpts(branchFilter,  uniqueSorted([ ...customersData.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
+        setOpts(managerFilter, uniqueSorted([ ...customersData.map(c=>c.person_incharge), ...trucks.map(t=>t.person_incharge) ]));
+        setOpts(truckFilter,   uniqueSorted(trucks.map(t=>t.truck_id)));
+
+        render();
+      }catch(err){ showError(err.message||String(err)); }
+    }
+
+    // Export (filtered) to Excel
+    function exportFilteredToExcel(){
+      try{
+        const filteredCustomers = data.customers.filter(passFilters);
+        const filteredLeads = (toggleLeads.checked ? data.leads : []).filter(passFilters);
+
+        const customerColumns = [
+          ['customer_id','Customer ID'],
+          ['customer_name','ชื่อลูกค้า'],
+          ['_statusTH','สถานะลูกค้า (TH)'],
+          ['branch','สาขา'],
+          ['truck_id','รหัสรถมิเตอร์'],
+          ['person_incharge','ผู้รับผิดชอบ'],
+          ['lastest_sales','ยอดขายล่าสุด'],
+          ['notes','หมายเหตุ'],
+          ['latitude','Latitude'],
+          ['longitude','Longitude']
+        ];
+        const leadColumns = [
+          ['leads_name','ชื่อลีด'],
+          ['status','สถานะลีด'],
+          ['branch','สาขา'],
+          ['saler','พนักงานขายผู้ดูแล'],
+          ['nearest_truck_id','รถที่ใกล้สุด'],
+          ['province','จังหวัด'],
+          ['district','อำเภอ/เขต'],
+          ['notes','หมายเหตุ'],
+          ['latitude','Latitude'],
+          ['longitude','Longitude']
+        ];
+
+        const mapRows = (rows, columns) => {
+          return rows.map(r=>{
+            const obj={};
+            columns.forEach(([key,label])=>{
+              let v = r[key];
+              if((key==='latitude'||key==='longitude') && v!==undefined && v!==null && v!==''){
+                const num = parseFloat(v);
+                v = isFinite(num) ? +num.toFixed(6) : '';
+              }
+              obj[label] = (v === undefined || v === null) ? '' : v;
+            });
+            return obj;
+          });
+        };
+
+        const customerData = mapRows(filteredCustomers, customerColumns);
         const leadData = mapRows(filteredLeads, leadColumns);
 
         const wb = XLSX.utils.book_new();
