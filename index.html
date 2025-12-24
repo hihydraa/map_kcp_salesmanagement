@@ -244,6 +244,23 @@ html, body { height: 100%; margin: 0; }
       box.classList.remove('hidden');
     }
 
+    function showDashError(msg){
+      console.error(msg);
+      const box=document.getElementById('dashErrorBox');
+      if(box){
+        box.textContent=msg;
+        box.classList.remove('hidden');
+      }
+    }
+
+    function clearDashError(){
+      const box=document.getElementById('dashErrorBox');
+      if(box){
+        box.textContent='';
+        box.classList.add('hidden');
+      }
+    }
+
     async function fetchSheet(sheetName, sheetId = SHEET_ID) {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&tq=`;
   const res = await fetch(url, { cache: "no-store" });
@@ -758,6 +775,7 @@ html, body { height: 100%; margin: 0; }
 
   async function loadDash(skipInit){
     try{
+      clearDashError();
       if(dashErrorBox){ dashErrorBox.classList.add("hidden"); dashErrorBox.textContent=""; }
       const dataset = await fetchSheet(CRM_SHEETS.dataset, CRM_SHEET_ID);
 
@@ -847,7 +865,10 @@ html, body { height: 100%; margin: 0; }
       });
 
       // Truck summary from already-loaded customers (map sheet)
-      renderTruckSummary(customersData);
+      if(!window.data || !window.data.customers){
+        await loadAndRender();
+      }
+      renderTruckSummary((window.data && window.data.customers) ? window.data.customers : []);
 
     }catch(err){
       console.error(err);
