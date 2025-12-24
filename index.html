@@ -271,6 +271,30 @@
       box.classList.remove('hidden');
     }
 
+    
+    // -------- DOM Elements (bind explicitly; do NOT rely on id->global) --------
+    const branchFilter = document.getElementById('branchFilter');
+    const managerFilter = document.getElementById('managerFilter');
+    const truckFilter = document.getElementById('truckFilter');
+    const statusFilter = document.getElementById('statusFilter');
+
+    const toggleLeads = document.getElementById('toggleLeads');
+    const toggleNearest = document.getElementById('toggleNearest');
+
+    const btnRefresh = document.getElementById('btnRefresh');
+    const btnReset = document.getElementById('btnReset');
+    const btnExport = document.getElementById('btnExport');
+
+    const sumCustomers = document.getElementById('sumCustomers');
+    const sumLeads = document.getElementById('sumLeads');
+    const sumActive = document.getElementById('sumActive');
+    const sumRisky = document.getElementById('sumRisky');
+    const sumLost = document.getElementById('sumLost');
+    const sumWinback = document.getElementById('sumWinback');
+    const sumDormant = document.getElementById('sumDormant');
+
+    const errorBox = document.getElementById('errorBox');
+
     async function fetchSheet(sheetName, sheetId = SHEET_ID) {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&tq=`;
   const res = await fetch(url, { cache: "no-store" });
