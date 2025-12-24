@@ -13,11 +13,23 @@
   <style>
     html, body { height: 100%; margin: 0; }
     #map { height: 100vh; width: 100vw; }
-    .leaflet-tooltip.my {
-      background:#111827; color:#fff; border:none;
-      border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.2);
-      padding:6px 8px;
+   /* Tooltip (มีแล้ว แต่คงไว้ได้) */
+    .leaflet-tooltip.my { background:#111827; color:#fff; border:none; }
+    
+    /* ✅ Popup ให้เป็นโทนเข้ม + ตัวอักษรขาว */
+    .leaflet-popup.my .leaflet-popup-content-wrapper {
+      background: #111827;
+      color: #fff;
+      border-radius: 12px;
     }
+    .leaflet-popup.my .leaflet-popup-tip {
+      background: #111827;
+    }
+    .leaflet-popup.my .leaflet-popup-content table,
+    .leaflet-popup.my .leaflet-popup-content td {
+      color: #fff;
+    }
+
     .badge { padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; }
   </style>
 </head>
@@ -95,13 +107,17 @@
 
       <div class="rounded-xl border bg-white p-3">
         <div class="text-xs text-gray-500 mb-1">สรุป</div>
-        <div id="summary" class="text-sm grid grid-cols-2 gap-x-3 gap-y-1">
-          <div>Customers:</div><div id="sumCustomers" class="font-semibold">-</div>
-          <div>Leads:</div><div id="sumLeads" class="font-semibold">-</div>
-          <div>ลูกค้า Active:</div><div id="sumActive" class="font-semibold">-</div>
-          <div>เสี่ยงที่จะเป็นลูกค้าหาย:</div><div id="sumRisky" class="font-semibold">-</div>
-          <div>ลูกค้าหาย:</div><div id="sumLost" class="font-semibold">-</div>
-        </div>
+       <div id="summary" class="text-sm grid grid-cols-2 gap-x-3 gap-y-1">
+        <div>Customers:</div><div id="sumCustomers" class="font-semibold">-</div>
+        <div>Leads:</div><div id="sumLeads" class="font-semibold">-</div>
+        <div>ลูกค้า Active:</div><div id="sumActive" class="font-semibold">-</div>
+        <div>เสี่ยงที่จะเป็นลูกค้าหาย:</div><div id="sumRisky" class="font-semibold">-</div>
+        <div>ลูกค้าหาย:</div><div id="sumLost" class="font-semibold">-</div>
+        <div>ลูกค้ากลับมา/ลูกค้าใหม่:</div><div id="sumWinback" class="font-semibold">-</div>
+        <div>หายเกิน 60 วัน:</div><div id="sumDormant" class="font-semibold">-</div>
+
+      </div>
+
         <div id="errorBox" class="text-xs text-red-600 mt-2 hidden"></div>
       </div>
 
@@ -317,13 +333,20 @@
       return true;
     }
 
+
     function setSummary({customers, leads}){
       sumCustomers.textContent = customers.length;
       sumLeads.textContent = leads.length;
-      sumActive.textContent = customers.filter(c => (c._statusTH||'')==='ลูกค้า Active').length;
-      sumRisky.textContent  = customers.filter(c => (c._statusTH||'')==='เสี่ยงที่จะเป็นลูกค้าหาย').length;
-      sumLost.textContent   = customers.filter(c => (c._statusTH||'')==='ลูกค้าหาย').length;
+    
+      sumActive.textContent  = customers.filter(c => (c._statusTH||'')==='ลูกค้า Active').length;
+      sumRisky.textContent   = customers.filter(c => (c._statusTH||'')==='เสี่ยงที่จะเป็นลูกค้าหาย').length;
+      sumLost.textContent    = customers.filter(c => (c._statusTH||'')==='ลูกค้าหาย').length;
+    
+      // ✅ เพิ่ม 2 สถานะใหม่
+      sumWinback.textContent = customers.filter(c => (c._statusTH||'')==='ลูกค้ากลับมา/ลูกค้าใหม่').length;
+      sumDormant.textContent = customers.filter(c => (c._statusTH||'')==='หายเกิน 60 วัน').length;
     }
+
 
     // Map + Layers
     const map = L.map('map');
