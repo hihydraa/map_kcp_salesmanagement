@@ -9,6 +9,8 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- SheetJS for Excel export -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Chart.js for Dashboard charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     
     html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
@@ -126,6 +128,8 @@ html, body { height: 100%; margin: 0; }
           <button id="btnDashRefresh" class="px-4 py-2 text-sm rounded-xl bg-gray-900 text-white shadow">รีเฟรช</button>
         </div>
       </div>
+
+      <div id="dashErrorBox" class="hidden mb-4 rounded-2xl border border-red-200 bg-red-50 text-red-700 text-sm p-3"></div>
 
       <!-- KPI cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
@@ -680,6 +684,7 @@ html, body { height: 100%; margin: 0; }
   const kpiLeadWon = document.getElementById('kpiLeadWon');
 
   const truckTableBody = document.getElementById('truckTableBody');
+    const dashErrorBox = document.getElementById('dashErrorBox');
 
   let chartTaskStatus, chartLeadStatus, chartTaskContact, chartTaskChannel;
 
@@ -753,6 +758,7 @@ html, body { height: 100%; margin: 0; }
 
   async function loadDash(skipInit){
     try{
+      if(dashErrorBox){ dashErrorBox.classList.add("hidden"); dashErrorBox.textContent=""; }
       const dataset = await fetchSheet(CRM_SHEETS.dataset, CRM_SHEET_ID);
 
       // owner options
@@ -844,7 +850,8 @@ html, body { height: 100%; margin: 0; }
       renderTruckSummary(customersData);
 
     }catch(err){
-      showError("Dashboard error: " + (err.message||String(err)));
+      console.error(err);
+      if(dashErrorBox){ dashErrorBox.textContent = "Dashboard error: " + (err.message||String(err)); dashErrorBox.classList.remove("hidden"); }
     }
   }
 
