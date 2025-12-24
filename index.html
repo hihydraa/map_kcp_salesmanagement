@@ -124,6 +124,13 @@ html, body { height: 100%; margin: 0; }
             <label class="text-xs text-gray-600">ผู้รับผิดชอบ (Dataset)</label>
             <select id="crmOwnerFilter" class="w-full mt-1 rounded-xl border-gray-300 text-sm"></select>
           </div>
+          <div class="w-72">
+            <label class="text-xs text-gray-600">ช่วงวันที่ (กำหนดเอง) • Default = ทั้งหมด</label>
+            <div class="mt-1 grid grid-cols-2 gap-2">
+              <input id="dashStartDate" type="date" class="w-full rounded-xl border-gray-300 text-sm px-3 py-2" />
+              <input id="dashEndDate" type="date" class="w-full rounded-xl border-gray-300 text-sm px-3 py-2" />
+            </div>
+          </div>
           <button id="btnDashRefresh" class="px-4 py-2 text-sm rounded-xl bg-gray-900 text-white shadow">รีเฟรช</button>
         </div>
       </div>
@@ -687,6 +694,8 @@ html, body { height: 100%; margin: 0; }
   // Dashboard (CRM Dataset)
   // -----------------------------
   const crmOwnerFilter = document.getElementById('crmOwnerFilter');
+  const dashStartDate = document.getElementById('dashStartDate');
+  const dashEndDate = document.getElementById('dashEndDate');
   const btnDashRefresh = document.getElementById('btnDashRefresh');
 
   const kpiTaskTotal = document.getElementById('kpiTaskTotal');
@@ -727,6 +736,49 @@ html, body { height: 100%; margin: 0; }
     return d === "TRUE" || ws === "เสร็จ" || ws === "สำเร็จ";
   }
   function pct(a,b){ return (b ? (a/b*100) : 0).toFixed(2) + "%"; }
+
+  function parseDateFlexible(v){
+    const s = norm(v);
+    if(!s) return null;
+    // Accept Date object
+    if(v instanceof Date) return isNaN(v.getTime())?null:v;
+    // yyyy-mm-dd
+    const m1 = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if(m1){
+      const d = new Date(Number(m1[1]), Number(m1[2])-1, Number(m1[3]));
+      return isNaN(d.getTime())?null:d;
+    }
+    // mm/dd/yyyy
+    const m2 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if(m2){
+      const d = new Date(Number(m2[3]), Number(m2[1])-1, Number(m2[2]));
+      return isNaN(d.getTime())?null:d;
+    }
+    // dd/mm/yyyy (fallback)
+    const m3 = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(m3){
+      // ambiguous; treat as dd/mm if first part > 12
+      const a=Number(m3[1]), b=Number(m3[2]), y=Number(m3[3]);
+      const d = (a>12) ? new Date(y, b-1, a) : new Date(y, a-1, b);
+      return isNaN(d.getTime())?null:d;
+    }
+    const d = new Date(s);
+    return isNaN(d.getTime())?null:d;
+  }
+
+  function getDashDateRange(){
+    const s = dashStartDate?.value ? new Date(dashStartDate.value) : null;
+    const e = dashEndDate?.value ? new Date(dashEndDate.value) : null;
+    if(e) e.setHours(23,59,59,999);
+    return { start:s, end:e };
+  }
+
+  function inRange(d, start, end){
+    if(!d) return false;
+    if(start && d < start) return false;
+    if(end && d > end) return false;
+    return true;
+  }
 
   function destroyChart(c){ try{ c?.destroy?.(); }catch(e){} }
 
@@ -784,7 +836,15 @@ html, body { height: 100%; margin: 0; }
       }
 
       const ownerSel = crmOwnerFilter.value;
-      const rows = ownerSel ? dataset.filter(r=>norm(r[CRM_COLS.owner])===ownerSel) : dataset;
+      let rows = ownerSel ? dataset.filter(r=>norm(r[CRM_COLS.owner])===ownerSel) : dataset;
+      // date range filter (Dataset uses 'วันที่ต้องทำ')
+      const dr = getDashDateRange();
+      if(dr.start || dr.end){
+        rows = rows.filter(r=>{
+          const d = parseDateFlexible(r[CRM_COLS.due]);
+          return inRange(d, dr.start, dr.end);
+        });
+      }
 
       const tasks = rows.filter(r=>!isLeadRow(r));
       const leads = rows.filter(r=>isLeadRow(r));
@@ -860,8 +920,18 @@ html, body { height: 100%; margin: 0; }
         }
       });
 
-      // Truck summary from already-loaded customers (map sheet)
-      renderTruckSummary(customersData);
+      // Customers Visualize + Truck summary (from Map Customers)
+      const customersAll = (typeof data!=='undefined' && data && Array.isArray(data.customers)) ? data.customers : [];
+      // date range filter (Customers uses 'lastest_sales')
+      let customers = customersAll;
+      if(dr.start || dr.end){
+        customers = customersAll.filter(c=>{
+          const d = parseDateFlexible(c.lastest_sales);
+          return inRange(d, dr.start, dr.end);
+        });
+      }
+      renderCustomerVisuals(customers);
+      renderTruckSummary(customers);
 
     }catch(err){
       showError("Dashboard error: " + (err.message||String(err)));
@@ -870,9 +940,54 @@ html, body { height: 100%; margin: 0; }
 
   btnDashRefresh.addEventListener('click', ()=>loadDash(true));
   crmOwnerFilter.addEventListener('change', ()=>loadDash(true));
+  dashStartDate?.addEventListener('change', ()=>loadDash(true));
+  dashEndDate?.addEventListener('change', ()=>loadDash(true));
 
-  function renderTruckSummary(customers){
+  
+  function renderCustomerVisuals(customers){
+    // Status counts (TH)
+    const counts = { "ลูกค้า Active":0, "เสี่ยงที่จะเป็นลูกค้าหาย":0, "ลูกค้าหาย":0, "ลูกค้ากลับมา/ลูกค้าใหม่":0, "หายเกิน 60 วัน":0, "อื่นๆ":0 };
+    customers.forEach(c=>{
+      const st = norm(c._statusTH);
+      if(counts[st]!=null) counts[st]++; else counts["อื่นๆ"]++;
+    });
+    const labels = Object.keys(counts);
+    const values = labels.map(k=>counts[k]);
+
+    destroyChart(chartCustomerStatus);
+    chartCustomerStatus = makeDoughnut('chartCustomerStatus', labels, values);
+
+    // Top truck Risky+Lost
+    const m = new Map();
+    customers.forEach(c=>{
+      const truck = norm(c.truck_id);
+      if(!truck) return;
+      const st = norm(c._statusTH);
+      const inc = (st==="เสี่ยงที่จะเป็นลูกค้าหาย" || st==="ลูกค้าหาย") ? 1 : 0;
+      if(!inc) return;
+      m.set(truck, (m.get(truck)||0)+1);
+    });
+    const arr = [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
+    const tLabels = arr.map(x=>x[0]);
+    const tValues = arr.map(x=>x[1]);
+
+    destroyChart(chartTruckRisk);
+    chartTruckRisk = makeBar('chartTruckRisk', tLabels, tValues);
+  }
+
+function renderTruckSummary(customers){
     const byTruck = {};
+    // init all trucks from Trucks sheet so table shows every truck
+    const trucksAll = (typeof data!=='undefined' && data && Array.isArray(data.trucks)) ? data.trucks : [];
+    trucksAll.forEach(t=>{
+      const truck = norm(t.truck_id);
+      if(!truck) return;
+      if(!byTruck[truck]){
+        byTruck[truck] = { truck, total:0, active:0, risky:0, lost:0, winback:0, dormant:0, owners:{} };
+        const owner = norm(t.person_incharge);
+        if(owner) byTruck[truck].owners[owner] = (byTruck[truck].owners[owner]||0)+1;
+      }
+    });
     customers.forEach(c=>{
       const truck = norm(c.truck_id);
       if(!truck) return;
