@@ -129,8 +129,15 @@ html, body { height: 100%; margin: 0; }
           <div class="w-72">
             <label class="text-xs text-gray-600">ช่วงวันที่ (Dataset: วันที่ต้องทำ)</label>
             <div class="flex gap-2 mt-1">
-              <input id="dashStart" type="date" class="w-full rounded-xl border-gray-300 text-sm" />
-              <input id="dashEnd" type="date" class="w-full rounded-xl border-gray-300 text-sm" />
+              <select id="dashPreset" class="w-44 rounded-xl border-gray-300 text-sm">
+                <option value="">Auto (ทั้งหมด)</option>
+                <option value="7">7 วันล่าสุด</option>
+                <option value="30">30 วันล่าสุด</option>
+                <option value="60">60 วันล่าสุด</option>
+                <option value="custom">กำหนดเอง</option>
+              </select>
+              <input id="dashStart" type="date" class="w-full rounded-xl border-gray-300 text-sm hidden" />
+              <input id="dashEnd" type="date" class="w-full rounded-xl border-gray-300 text-sm hidden" />
             </div>
           </div>
 
@@ -338,10 +345,27 @@ html, body { height: 100%; margin: 0; }
       if(raw==null) return "";
       const s = String(raw).trim();
       const sl = s.toLowerCase();
+
+      // EN -> TH (Customers status)
       if (sl === 'active') return 'ลูกค้า Active';
-      if (sl === 'risky to lost') return 'เสี่ยงที่จะเป็นลูกค้าหาย';
-      if (sl === 'lost customer') return 'ลูกค้าหาย';
+      if (sl === 'risky to lost' || sl === 'risky') return 'เสี่ยงที่จะเป็นลูกค้าหาย';
+      if (sl === 'lost customer' || sl === 'lost') return 'ลูกค้าหาย';
+
+      // winback / new (ตามสูตรใน Google Sheet)
+      if (sl === 'winback/new customer' || sl === 'winback' || sl === 'new customer' || sl === 'new' || sl === 'reactivated') {
+        return 'ลูกค้ากลับมา/ลูกค้าใหม่';
+      }
+
+      // dormant > 60
+      if (sl.startsWith('dormant') || sl === 'dormant >60' || sl === 'dormant>60') {
+        return 'หายเกิน 60 วัน';
+      }
+
+      // already TH
       if (s === 'ลูกค้า active') return 'ลูกค้า Active';
+      if (s === 'ลูกค้ากลับมา/ลูกค้าใหม่') return 'ลูกค้ากลับมา/ลูกค้าใหม่';
+      if (s === 'หายเกิน 60 วัน') return 'หายเกิน 60 วัน';
+
       return s;
     }
 
@@ -553,6 +577,7 @@ html, body { height: 100%; margin: 0; }
         });
 
         data={settings, customers: customersData, leads, trucks};
+        window.data = data;
 
         const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase()===key) || {}).value;
         const cLat = parseFloat(findVal('CENTER_LAT')||16.43),
@@ -699,6 +724,7 @@ html, body { height: 100%; margin: 0; }
   const crmOwnerFilter = document.getElementById('crmOwnerFilter');
   const dashStart = document.getElementById('dashStart');
   const dashEnd = document.getElementById('dashEnd');
+  const dashPreset = document.getElementById('dashPreset');
   const btnDashRefresh = document.getElementById('btnDashRefresh');
 
   const kpiTaskTotal = document.getElementById('kpiTaskTotal');
@@ -819,9 +845,24 @@ html, body { height: 100%; margin: 0; }
       const ownerSel = crmOwnerFilter.value;
 
       // date range filter (Dataset: วันที่ต้องทำ)
-      const startD = dashStart && dashStart.value ? new Date(dashStart.value) : null;
-      const endD = dashEnd && dashEnd.value ? new Date(dashEnd.value) : null;
-      if(endD){ endD.setHours(23,59,59,999); }
+      let startD = null;
+      let endD = null;
+
+      const preset = dashPreset ? dashPreset.value : "";
+      if(preset && preset !== "custom"){
+        // last N days (including today)
+        const n = Number(preset);
+        if(!Number.isNaN(n) && n>0){
+          endD = new Date(); endD.setHours(23,59,59,999);
+          startD = new Date(endD); startD.setDate(startD.getDate() - (n-1));
+          startD.setHours(0,0,0,0);
+        }
+      }else if(preset === "custom"){
+        startD = (dashStart && dashStart.value) ? new Date(dashStart.value) : null;
+        endD = (dashEnd && dashEnd.value) ? new Date(dashEnd.value) : null;
+        if(startD){ startD.setHours(0,0,0,0); }
+        if(endD){ endD.setHours(23,59,59,999); }
+      }
 
       const rows = dataset.filter(r=>{
         if(ownerSel && norm(r[CRM_COLS.owner])!==ownerSel) return false;
@@ -938,6 +979,25 @@ html, body { height: 100%; margin: 0; }
   crmOwnerFilter.addEventListener('change', ()=>loadDash(true));
   dashStart && dashStart.addEventListener('change', ()=>loadDash(true));
   dashEnd && dashEnd.addEventListener('change', ()=>loadDash(true));
+  if(dashPreset){
+    const syncPresetUI = ()=>{
+      const isCustom = dashPreset.value === "custom";
+      dashStart && dashStart.classList.toggle("hidden", !isCustom);
+      dashEnd && dashEnd.classList.toggle("hidden", !isCustom);
+      if(!isCustom){
+        // clear custom values to avoid confusion
+        if(dashStart) dashStart.value = "";
+        if(dashEnd) dashEnd.value = "";
+      }
+    };
+    dashPreset.addEventListener('change', ()=>{
+      syncPresetUI();
+      loadDash(true);
+    });
+    // init
+    syncPresetUI();
+  }
+
 
   
   function renderTruckSummary(customers, trucks){
