@@ -234,12 +234,47 @@
       return s;
     }
 
+   
+    const FIELD_LABELS = {
+  customer_id: "รหัสลูกค้า",
+  customer_name: "ชื่อลูกค้า",
+  _statusTH: "สถานะลูกค้า",
+  branch: "สาขา",
+  truck_id: "รถ",
+  person_incharge: "ผู้รับผิดชอบ",
+  lastest_sales: "บิลขายล่าสุด",
+  notes: "หมายเหตุ",
+  latitude: "Latitude",
+  longitude: "Longtitude",
+
+  // Leads (เผื่อใช้)
+  lead_id: "รหัส Lead",
+  leads_name: "ชื่อลีด",
+  status: "สถานะ Lead",
+  saler: "พนักงานขาย",
+  province: "จังหวัด",
+  district: "อำเภอ",
+  nearest_truck_id: "รถที่ใกล้ที่สุด"
+};
+
+    
+    
+    
+    
     function buildRowsHtml(obj, fields){
-      return fields
-        .filter(k => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "")
-        .map(k => `<tr><td class="pr-2 text-gray-300">${k}</td><td class="font-semibold">${obj[k]}</td></tr>`)
-        .join('');
-    }
+  return fields
+    .filter(k => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "")
+    .map(k => `<tr>
+      <td class="pr-2 text-slate-300 whitespace-nowrap">
+        ${FIELD_LABELS[k] || k}
+      </td>
+      <td class="font-semibold text-white">
+        ${obj[k]}
+      </td>
+    </tr>`)
+    .join('');
+}
+
 
     // ✅ Truck colors map
     let truckColorMap = {};
@@ -530,15 +565,16 @@
         const filteredCustomers = data.customers.filter(passFilters);
         const filteredLeads = (toggleLeads.checked ? data.leads : []).filter(passFilters);
 
-        const customerColumns = [
-          ['รหัสลูกค้า','Customer ID'],
-          ['ชื่อลูกค้า','ชื่อลูกค้า'],
-          ['สถานะ','สถานะลูกค้า (TH)'],
-          ['สาขา','สาขา'],
-          ['รถ','รหัสรถมิเตอร์'],
-          ['ผู้รับผิดชอบ','ผู้รับผิดชอบ'],
-          ['บิลขายล่าสุด','ยอดขายล่าสุด'],
-          ['หมายเหตุ','หมายเหตุ'],
+       
+          const customerColumns = [
+          ['customer_id','Customer ID'],
+          ['customer_name','ชื่อลูกค้า'],
+          ['_statusTH','สถานะลูกค้า (TH)'],
+          ['branch','สาขา'],
+          ['truck_id','รหัสรถมิเตอร์'],
+          ['person_incharge','ผู้รับผิดชอบ'],
+          ['lastest_sales','ยอดขายล่าสุด'],
+          ['notes','หมายเหตุ'],
           ['latitude','Latitude'],
           ['longitude','Longitude']
         ];
