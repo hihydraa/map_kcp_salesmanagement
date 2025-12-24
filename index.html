@@ -12,10 +12,8 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     
-    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+    html, body { height: 100%; margin: 0; padding: 0; }
     #map { position: fixed; inset: 0; height: 100vh; width: 100vw; }
-html, body { height: 100%; margin: 0; }
-    #map { height: 100vh; width: 100vw; }
     .leaflet-tooltip.my {
       background:#111827; color:#fff; border:none;
       border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.2);
@@ -444,25 +442,27 @@ html, body { height: 100%; margin: 0; }
       DORMANT: "Dormant>60",
     };
 
+    
     function passFilters(item){
       const b = branchFilter.value;
       const m = managerFilter.value;
       const t = truckFilter.value;
       const s = statusFilter.value; // ACTIVE/RISKY/LOST/WINBACK/DORMANT
       const selectedBranches = getSelectedRadiusBranches();
-    
+
       if (b && (item.branch||'') !== b) return false;
       if (m && (item.person_incharge||'') !== m) return false;
       if (t && (item.truck_id || item.nearest_truck_id || '') !== t) return false;
-    
-      // ✅ กรองสถานะด้วย "รหัส" ที่เราจะใส่ให้ item ตอนโหลดข้อมูล (ดูข้อ B)
+
+      // ✅ กรองสถานะด้วย "รหัส" (_statusCode) ที่เราสร้างให้ตอนโหลดข้อมูล
       if (s && (item._statusCode || '') !== s) return false;
-    
+
+      // ✅ ถ้ามีเลือกสาขารัศมี → ต้องอยู่ในอย่างน้อย 1 วง (OR)
       if (selectedBranches.length){
         const lat = parseFloat(item.latitude||item.lat||item.lattitude);
         const lng = parseFloat(item.longitude||item.lng||item.longtitude||item.lon);
         if(!isFinite(lat) || !isFinite(lng)) return false;
-    
+
         let insideAny = false;
         for(const code of selectedBranches){
           const center = BRANCH_RADIUS_CENTERS[code];
@@ -471,33 +471,10 @@ html, body { height: 100%; margin: 0; }
         }
         if(!insideAny) return false;
       }
-    
-      return true;
-    }
-
-
-
-
-      // ถ้ามีเลือกสาขารัศมี → ต้องอยู่ในอย่างน้อย 1 วง (OR)
-      if(selectedBranches.length){
-        const lat = parseFloat(item.latitude||item.lat||item.lattitude);
-        const lng = parseFloat(item.longitude||item.lng||item.longtitude||item.lon);
-        if(!isFinite(lat) || !isFinite(lng)) return false;
-
-        let insideAny = false;
-        for(const code of selectedBranches){
-          const center = BRANCH_RADIUS_CENTERS[code];
-          const d = haversineKm(center.lat, center.lng, lat, lng);
-          if(d <= RADIUS_FILTER_KM){
-            insideAny = true;
-            break;
-          }
-        }
-        if(!insideAny) return false;
-      }
 
       return true;
     }
+
 
     function setSummary({customers, leads}){
       sumCustomers.textContent = customers.length;
@@ -620,94 +597,7 @@ html, body { height: 100%; margin: 0; }
         const [settings, customersRaw, leads, trucks] = await Promise.all([
           fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
         ]);
-
-        const customersData = customersRaw.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
-
-        truckColorMap = {};
-        trucks.forEach(t=>{
-          const key = normId(t.truck_id);
-          const col = normHex(t.color);
-          if (key && col) truckColorMap[key] = col;
-        });
-
-        data={settings, customers: customersData, leads, trucks};
-
-        const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase()===key) || {}).value;
-        const cLat = parseFloat(findVal('CENTER_LAT')||16.43),
-              cLng = parseFloat(findVal('CENTER_LNG')||103.49),
-              zoom = parseInt(findVal('ZOOM')||9);
-        map.setView([cLat,cLng], zoom);
-
-        const setOpts=(el,opts)=>{
-          el.innerHTML='';
-          el.append(new Option('ทั้งหมด',''));
-          opts.forEach(o=>el.append(new Option(o,o)));
-        };
-        setOpts(branchFilter,  uniqueSorted([ ...customersData.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
-        setOpts(managerFilter, uniqueSorted([ ...customersData.map(c=>c.person_incharge), ...trucks.map(t=>t.person_incharge) ]));
-        setOpts(truckFilter,   uniqueSorted(trucks.map(t=>t.truck_id)));
-
-        render();
-      }catch(err){ showError(err.message||String(err)); }
-    }
-
-    // Export (filtered) to Excel
-    function exportFilteredToExcel(){
-      try{
-        const filteredCustomers = data.customers.filter(passFilters);
-        const filteredLeads = (toggleLeads.checked ? data.leads : []).filter(passFilters);
-
-        const customerColumns = [
-          ['customer_id','Customer ID'],
-          ['customer_name','ชื่อลูกค้า'],
-          ['_statusTH','สถานะลูกค้า (TH)'],
-          ['branch','สาขา'],
-          ['truck_id','รหัสรถมิเตอร์'],
-          ['person_incharge','ผู้รับผิดชอบ'],
-          ['lastest_sales','ยอดขายล่าสุด'],
-          ['notes','หมายเหตุ'],
-          ['latitude','Latitude'],
-          ['longitude','Longitude']
-        ];
-        const leadColumns = [
-          ['leads_name','ชื่อลีด'],
-          ['status','สถานะลีด'],
-          ['branch','สาขา'],
-          ['saler','พนักงานขายผู้ดูแล'],
-          ['nearest_truck_id','รถที่ใกล้สุด'],
-          ['province','จังหวัด'],
-          ['district','อำเภอ/เขต'],
-          ['notes','หมายเหตุ'],
-          ['latitude','Latitude'],
-          ['longitude','Longitude']
-        ];
-
-        const mapRows = (rows, columns) => {
-          return rows.map(r=>{
-            const obj={};
-            columns.forEach(([key,label])=>{
-              let v = r[key];
-              if((key==='latitude'||key==='longitude') && v!==undefined && v!==null && v!==''){
-                const num = parseFloat(v);
-                v = isFinite(num) ? +num.toFixed(6) : '';
-              }
-              obj[label] = (v === undefined || v === null) ? '' : v;
-            });
-            return obj;
-          });
-        };
-
-        const customersData = customersRaw.map(c => {
-        const th = mapStatusTH(c.status);
-        const code =
-            th === 'ลูกค้า Active' ? 'ACTIVE' :
-            th === 'เสี่ยงที่จะเป็นลูกค้าหาย' ? 'RISKY' :
-            th === 'ลูกค้าหาย' ? 'LOST' :
-            th === 'ลูกค้ากลับมา/ลูกค้าใหม่' ? 'WINBACK' :
-            th === 'หายเกิน 60 วัน' ? 'DORMANT' :
-            '';
-          return { ...c, _statusTH: th, _statusCode: code };
-        });
+        const customerData = mapRows(filteredCustomers, customerColumns);
 
         const leadData = mapRows(filteredLeads, leadColumns);
 
