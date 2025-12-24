@@ -50,14 +50,15 @@ html, body { height: 100%; margin: 0; }
           <select id="truckFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
         </label>
         <label class="text-xs text-gray-600">สถานะลูกค้า
-          <select id="statusFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm">
-            <option value="">ทั้งหมด</option>
-            <option value="ลูกค้า Active">ลูกค้า Active</option>
-            <option value="เสี่ยงที่จะเป็นลูกค้าหาย">เสี่ยงที่จะเป็นลูกค้าหาย</option>
-            <option value="ลูกค้าหาย">ลูกค้าหาย</option>
-            <option value="Winback">winback/new customer</option>
-            <option value="Dormant">Dormant &gt; 60 วัน</option>
-          </select>
+         <select id="statusFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm">
+          <option value="">ทั้งหมด</option>
+          <option value="ACTIVE">ลูกค้า Active</option>
+          <option value="RISKY">เสี่ยงที่จะเป็นลูกค้าหาย</option>
+          <option value="LOST">ลูกค้าหาย</option>
+          <option value="WINBACK">Winback / ลูกค้าใหม่</option>
+          <option value="DORMANT">Dormant > 60 วัน</option>
+        </select>
+
         </label>
 
         <!-- ตัวกรองรัศมี 100 กม. หลายสาขา (Multiple choice) -->
