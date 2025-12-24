@@ -10,58 +10,50 @@
   <!-- SheetJS for Excel export -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
-    html, body { height: 100%; margin: 0; }
-    #map { height: 100vh; width: 100vw; }
-   /* Tooltip (มีแล้ว แต่คงไว้ได้) */
-    .leaflet-tooltip.my { background:#111827; color:#fff; border:none; }
     
-    /* ✅ Popup ให้เป็นโทนเข้ม + ตัวอักษรขาว */
-    .leaflet-popup.my .leaflet-popup-content-wrapper {
-      background: #111827;
-      color: #fff;
-      border-radius: 12px;
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+    #map { position: fixed; inset: 0; height: 100vh; width: 100vw; }
+html, body { height: 100%; margin: 0; }
+    #map { height: 100vh; width: 100vw; }
+    .leaflet-tooltip.my {
+      background:#111827; color:#fff; border:none;
+      border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.2);
+      padding:6px 8px;
     }
-    .leaflet-popup.my .leaflet-popup-tip {
-      background: #111827;
-    }
-    .leaflet-popup.my .leaflet-popup-content table,
-    .leaflet-popup.my .leaflet-popup-content td {
-      color: #fff;
-    }
-
     .badge { padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; }
   </style>
 </head>
 <body class="bg-gray-50">
-  <div id="panel" class="fixed z-[999] top-3 left-3 w-[360px] max-w-[92vw] bg-white/95 backdrop-blur border border-gray-200 rounded-2xl shadow-xl">
+  
+  <!-- Top Tabs -->
+  <div id="topTabs" class="fixed z-[1000] left-4 top-4 flex gap-2">
+    <button id="tabMap" class="px-3 py-2 text-sm rounded-xl bg-gray-900 text-white shadow">Map</button>
+    <button id="tabDash" class="px-3 py-2 text-sm rounded-xl bg-white/90 backdrop-blur border border-gray-200 text-gray-800 shadow">Dashboard</button>
+  </div>
+
+  <div id="viewMap">
+<div id="panel" class="fixed z-[999] top-3 left-3 w-[360px] max-w-[92vw] bg-white/95 backdrop-blur border border-gray-200 rounded-2xl shadow-xl">
     <div class="p-4 border-b">
       <h1 class="text-xl font-bold text-gray-900">KCP Map For Sales Management (Real-Time)</h1>
-      <p class="text-xs text-gray-500">แผนที่บริหารลูกค้าปัจจุบัน & ลูกค้ามุ่งหวัง</p>
+      <p class="text-xs text-gray-500">แผนที่บริหารลูกค้าปัจจุบัน & ลูกค้ามุ่งหวัง (อัพเดตยอดขายถึงวันที่ 23 ธันวาคม)</p>
     </div>
-
     <div class="p-4 flex flex-col gap-3">
       <div class="grid grid-cols-2 gap-2">
         <label class="text-xs text-gray-600">สาขา (Branch)
           <select id="branchFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
         </label>
-
-        <!-- ✅ เปลี่ยน Manager -> ผู้รับผิดชอบ (ดึงจาก Customers.person_incharge) -->
-        <label class="text-xs text-gray-600">ผู้รับผิดชอบ
+        <label class="text-xs text-gray-600">ผู้จัดการมิเตอร์ (Manager)
           <select id="managerFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
         </label>
-
         <label class="text-xs text-gray-600">รถมิเตอร์ (Truck)
           <select id="truckFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
         </label>
-
         <label class="text-xs text-gray-600">สถานะลูกค้า
           <select id="statusFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm">
             <option value="">ทั้งหมด</option>
             <option value="ลูกค้า Active">ลูกค้า Active</option>
             <option value="เสี่ยงที่จะเป็นลูกค้าหาย">เสี่ยงที่จะเป็นลูกค้าหาย</option>
             <option value="ลูกค้าหาย">ลูกค้าหาย</option>
-            <option value="ลูกค้ากลับมา/ลูกค้าใหม่">ลูกค้ากลับมา/ลูกค้าใหม่</option>
-            <option value="หายเกิน 60 วัน">หายเกิน 60 วัน</option>
           </select>
         </label>
 
@@ -97,41 +89,133 @@
           <input id="toggleNearest" type="checkbox" class="rounded" checked /> คำนวณรถที่ใกล้สุดให้ Leads
         </label>
       </div>
-
       <div class="flex gap-2 flex-wrap">
         <button id="btnRefresh" class="px-3 py-2 text-sm rounded-lg bg-gray-900 text-white">รีเฟรชข้อมูล</button>
         <button id="btnReset" class="px-3 py-2 text-sm rounded-lg border">ล้างตัวกรอง</button>
         <button id="btnExport" class="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white">ส่งออก (Excel)</button>
       </div>
-
       <div class="rounded-xl border bg-white p-3">
         <div class="text-xs text-gray-500 mb-1">สรุป</div>
-       <div id="summary" class="text-sm grid grid-cols-2 gap-x-3 gap-y-1">
-        <div>Customers:</div><div id="sumCustomers" class="font-semibold">-</div>
-        <div>Leads:</div><div id="sumLeads" class="font-semibold">-</div>
-        <div>ลูกค้า Active:</div><div id="sumActive" class="font-semibold">-</div>
-        <div>เสี่ยงที่จะเป็นลูกค้าหาย:</div><div id="sumRisky" class="font-semibold">-</div>
-        <div>ลูกค้าหาย:</div><div id="sumLost" class="font-semibold">-</div>
-        <div>ลูกค้ากลับมา/ลูกค้าใหม่:</div><div id="sumWinback" class="font-semibold">-</div>
-        <div>หายเกิน 60 วัน:</div><div id="sumDormant" class="font-semibold">-</div>
-
-      </div>
-
+        <div id="summary" class="text-sm grid grid-cols-2 gap-x-3 gap-y-1">
+          <div>Customers:</div><div id="sumCustomers" class="font-semibold">-</div>
+          <div>Leads:</div><div id="sumLeads" class="font-semibold">-</div>
+          <div>ลูกค้า Active:</div><div id="sumActive" class="font-semibold">-</div>
+          <div>เสี่ยงที่จะเป็นลูกค้าหาย:</div><div id="sumRisky" class="font-semibold">-</div>
+          <div>ลูกค้าหาย:</div><div id="sumLost" class="font-semibold">-</div>
+        </div>
         <div id="errorBox" class="text-xs text-red-600 mt-2 hidden"></div>
       </div>
-
       <div class="text-xs text-gray-500">ตั้งค่าในชีท: <span class="font-mono">Settings</span></div>
     </div>
   </div>
-
   <div id="map"></div>
+  </div>
+
+  <div id="viewDash" class="hidden fixed inset-0 overflow-auto bg-gray-50">
+    <div class="max-w-7xl mx-auto px-4 pt-20 pb-10">
+      <div class="flex items-end justify-between gap-3 mb-4">
+        <div>
+          <div class="text-2xl font-extrabold text-gray-900">CRM Dashboard</div>
+          <div class="text-sm text-gray-500">สรุปการทำงานของทีมขายจาก 2 แหล่งข้อมูล (Map + CRM Dataset)</div>
+        </div>
+        <div class="flex items-end gap-2">
+          <div class="w-64">
+            <label class="text-xs text-gray-600">ผู้รับผิดชอบ (Dataset)</label>
+            <select id="crmOwnerFilter" class="w-full mt-1 rounded-xl border-gray-300 text-sm"></select>
+          </div>
+          <button id="btnDashRefresh" class="px-4 py-2 text-sm rounded-xl bg-gray-900 text-white shadow">รีเฟรช</button>
+        </div>
+      </div>
+
+      <!-- KPI cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+          <div class="text-xs text-gray-500">Tasks (ไม่ใช่ Leads) • ลูกค้างานทั้งหมด</div>
+          <div class="text-3xl font-extrabold text-gray-900 mt-1" id="kpiTaskTotal">-</div>
+          <div class="text-sm text-gray-500 mt-1">ต้องติดตาม: <span class="font-semibold text-gray-800" id="kpiTaskFollow">-</span></div>
+        </div>
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+          <div class="text-xs text-gray-500">Tasks • %Task Completed Rate</div>
+          <div class="text-3xl font-extrabold text-gray-900 mt-1" id="kpiTaskRate">-</div>
+          <div class="text-sm text-gray-500 mt-1">ทำเสร็จ: <span class="font-semibold text-gray-800" id="kpiTaskDone">-</span></div>
+        </div>
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+          <div class="text-xs text-gray-500">Leads • จำนวน Leads</div>
+          <div class="text-3xl font-extrabold text-gray-900 mt-1" id="kpiLeadTotal">-</div>
+          <div class="text-sm text-gray-500 mt-1">ต้องติดตาม: <span class="font-semibold text-gray-800" id="kpiLeadFollow">-</span></div>
+        </div>
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+          <div class="text-xs text-gray-500">Leads • %Leads Conversion Rate</div>
+          <div class="text-3xl font-extrabold text-gray-900 mt-1" id="kpiLeadRate">-</div>
+          <div class="text-sm text-gray-500 mt-1">ปิดสำเร็จ: <span class="font-semibold text-gray-800" id="kpiLeadWon">-</span></div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+          <div class="font-bold text-gray-900 mb-2">Tasks: สถานะงาน</div>
+          <div class="h-72"><canvas id="chartTaskStatus"></canvas></div>
+        </div>
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+          <div class="font-bold text-gray-900 mb-2">Leads: สถานะงาน</div>
+          <div class="h-72"><canvas id="chartLeadStatus"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+          <div class="font-bold text-gray-900 mb-2">Tasks: ช่องทางการติดต่อ</div>
+          <div class="h-72"><canvas id="chartTaskContact"></canvas></div>
+        </div>
+        <div class="rounded-2xl border bg-white p-4 shadow-sm">
+          <div class="font-bold text-gray-900 mb-2">Tasks: ช่องทางการขาย</div>
+          <div class="h-72"><canvas id="chartTaskChannel"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Truck summary -->
+      <div class="rounded-2xl border bg-white p-4 shadow-sm">
+        <div class="flex items-end justify-between gap-3 mb-2">
+          <div>
+            <div class="font-bold text-gray-900">สรุปการขายตามรถ (Customers)</div>
+            <div class="text-xs text-gray-500">แยกสถานะลูกค้าต่อรถ + ผู้รับผิดชอบ (Top 3)</div>
+          </div>
+          <div class="text-xs text-gray-400">Source: Google Sheet (Customers)</div>
+        </div>
+        <div class="overflow-auto">
+          <table class="min-w-full text-sm">
+            <thead class="text-xs text-gray-500 bg-gray-50 sticky top-0">
+              <tr>
+                <th class="text-left p-2">รถ</th>
+                <th class="text-left p-2">ผู้รับผิดชอบ</th>
+                <th class="text-right p-2">ลูกค้ารวม</th>
+                <th class="text-right p-2">Active</th>
+                <th class="text-right p-2">Risky</th>
+                <th class="text-right p-2">Lost</th>
+                <th class="text-right p-2">Winback/New</th>
+                <th class="text-right p-2">Dormant&gt;60</th>
+              </tr>
+            </thead>
+            <tbody id="truckTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
 
   <script>
     // -------- CONFIG --------
     const SHEET_ID = "1KicClhZHtMr9bBmwLv31zvb0021SRUcGr2eRRagsO6c";
     const SHEETS = { customers: "Customers", leads: "leads", trucks: "Trucks", settings: "Settings" };
 
-    // center แต่ละสาขา + รัศมี 100 กม.
+    
+  // --- CRM Dataset (separate Google Sheet) ---
+  const CRM_SHEET_ID = "1Nxbvm7R6AqwTpUtI8AHEVY2HZv0gAnYcrC_lBDTe5os";
+  const CRM_SHEETS = { dataset: "Dataset" };
+
+// center แต่ละสาขา + รัศมี 100 กม.
     const BRANCH_RADIUS_CENTERS = {
       ST:  { lat: 16.381029272179042, lng: 103.34881852164082 },
       KN:  { lat: 16.71600409911031,  lng: 103.08205194412724 },
@@ -140,12 +224,12 @@
     };
     const RADIUS_FILTER_KM = 100;
 
-    // สีรัศมีแต่ละสาขา
+    // สีรัศมีแต่ละสาขา (stroke = สีขอบ, fill = สีพื้น)
     const RADIUS_COLORS = {
-      ST:  { stroke: "#3b82f6", fill: "#3b82f6" },
-      KN:  { stroke: "#22c55e", fill: "#22c55e" },
-      MUK: { stroke: "#a855f7", fill: "#a855f7" },
-      WNN: { stroke: "#ef4444", fill: "#ef4444" }
+      ST:  { stroke: "#3b82f6", fill: "#3b82f6" }, // ฟ้า
+      KN:  { stroke: "#22c55e", fill: "#22c55e" }, // เขียว
+      MUK: { stroke: "#a855f7", fill: "#a855f7" }, // ม่วง
+      WNN: { stroke: "#ef4444", fill: "#ef4444" }  // แดง
     };
 
     // -------- UTIL --------
@@ -156,17 +240,18 @@
       box.classList.remove('hidden');
     }
 
-    async function fetchSheet(sheetName) {
-      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&tq=`;
-      const res = await fetch(url, { cache: "no-store" });
-      const text = await res.text();
-      if(!text.includes('google.visualization')) throw new Error(`โหลดชีท "${sheetName}" ไม่สำเร็จ\n${text.slice(0,160)}`);
-      const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
-      const cols = json.table.cols.map(c => c.label || c.id);
-      const rows = json.table.rows.map(r => (r.c||[]).map(c => c ? (c.f ?? c.v ?? "") : ""));
-      return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
-    }
+    async function fetchSheet(sheetName, sheetId = SHEET_ID) {
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&tq=`;
+  const res = await fetch(url, { cache: "no-store" });
+  const text = await res.text();
+  const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+  const cols = json.table.cols.map(c => c.label || c.id);
+  const rows = json.table.rows.map(r => (r.c || []).map(c => c ? (c.f ?? c.v ?? "") : ""));
+  return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
+}
 
+
+    // ---------- Helpers ----------
     const normHex = (c) => {
       if (!c) return "";
       const raw = String(c).trim().replace(/^#/, "");
@@ -174,9 +259,15 @@
       return "";
     };
     const normId = (id) => (id || "").toString().trim().toLowerCase();
-    const uniqueSorted = (arr) => [...new Set(arr.filter(v => v!==undefined && v!==null && String(v).trim()!==''))].sort((a,b)=>String(a).localeCompare(String(b),'th'));
-    const gmapsUrl = (lat,lng) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lat+","+lng)}`;
 
+    let truckColorMap = {};
+    const getTruckColor = (id) => {
+      const key = normId(id);
+      return truckColorMap[key] || "";
+    };
+
+    const uniqueSorted = (arr) => [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'));
+    const gmapsUrl = (lat,lng) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lat+","+lng)}`;
     const haversineKm=(a,b,c,d)=>{
       const R=6371,toRad=x=>x*Math.PI/180;
       const dLat=toRad(c-a),dLon=toRad(d-b);
@@ -207,83 +298,34 @@
         tooltipAnchor: [0,-24]
       });
     }
-
     function leadPinColor(statusText){
       const s = String(statusText || '').trim();
       if (s === 'ปิดการขาย') return '#308320';
       return '#EF4444';
     }
 
-    // ✅ Map customer status (จากชีท Customers.status) -> TH
     function mapStatusTH(raw){
       if(raw==null) return "";
       const s = String(raw).trim();
       const sl = s.toLowerCase();
-
       if (sl === 'active') return 'ลูกค้า Active';
       if (sl === 'risky to lost') return 'เสี่ยงที่จะเป็นลูกค้าหาย';
       if (sl === 'lost customer') return 'ลูกค้าหาย';
-
-      if (sl === 'winback/new customer' || sl === 'winback' || sl === 'new customer' || sl === 'new')
-        return 'ลูกค้ากลับมา/ลูกค้าใหม่';
-
-      if (sl === 'dormant >60' || sl === 'dormant' || sl === 'deep lost' || sl === 'lost >60')
-        return 'หายเกิน 60 วัน';
-
       if (s === 'ลูกค้า active') return 'ลูกค้า Active';
       return s;
     }
 
-   
-    const FIELD_LABELS = {
-  customer_id: "รหัสลูกค้า",
-  customer_name: "ชื่อลูกค้า",
-  _statusTH: "สถานะลูกค้า",
-  branch: "สาขา",
-  truck_id: "รถ",
-  person_incharge: "ผู้รับผิดชอบ",
-  lastest_sales: "บิลขายล่าสุด",
-  notes: "หมายเหตุ",
-  latitude: "Latitude",
-  longitude: "Longtitude",
-
-  // Leads (เผื่อใช้)
-  lead_id: "รหัส Lead",
-  leads_name: "ชื่อลีด",
-  status: "สถานะ Lead",
-  saler: "พนักงานขาย",
-  province: "จังหวัด",
-  district: "อำเภอ",
-  nearest_truck_id: "รถที่ใกล้ที่สุด"
-};
-
-    
-    
-    
-    
     function buildRowsHtml(obj, fields){
-  return fields
-    .filter(k => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "")
-    .map(k => `<tr>
-      <td class="pr-2 text-slate-300 whitespace-nowrap">
-        ${FIELD_LABELS[k] || k}
-      </td>
-      <td class="font-semibold text-white">
-        ${obj[k]}
-      </td>
-    </tr>`)
-    .join('');
-}
-
-
-    // ✅ Truck colors map
-    let truckColorMap = {};
-    const getTruckColor = (id) => truckColorMap[normId(id)] || "";
+      return fields
+        .filter(k => obj[k] !== undefined && obj[k] !== null && obj[k] !== "")
+        .map(k => `<tr><td class="pr-2 text-gray-500">${k}</td><td class="font-semibold">${obj[k]}</td></tr>`)
+        .join('');
+    }
 
     function tooltipHtml(obj,type){
       const fields = (type==='customer')
-        ? ['customer_id','customer_name','lastest_sales','_statusTH','branch','truck_id','person_incharge','notes']
-        : ['lead_id','leads_name','status','province','district','nearest_truck_id','saler','customer_id','notes','_branch'];
+        ? ['customer_id','customer_name','lastest_sales','_statusTH','branch','truck_id','manager_incharge','notes']
+        : ['leads_name','status','province','district','nearest_truck_id','saler','branch','notes'];
       const rows = buildRowsHtml(obj, fields);
       const badge= type==='customer'
         ? `<span class="badge" style="background:${getTruckColor(obj.truck_id)||'#16a34a'};color:white">${obj._statusTH||''}</span>`
@@ -298,11 +340,11 @@
       const lat = parseFloat(obj.latitude||obj.lat||obj.lattitude);
       const lng = parseFloat(obj.longitude||obj.lng||obj.longtitude||obj.lon);
       const fields = (type==='customer')
-        ? ['customer_id','customer_name','lastest_sales','_statusTH','branch','truck_id','person_incharge','notes']
-        : ['lead_id','leads_name','status','province','district','nearest_truck_id','saler','customer_id','notes','_branch'];
+        ? ['customer_id','customer_name','lastest_sales','_statusTH','branch','truck_id','manager_incharge','notes']
+        : ['leads_name','status','province','district','nearest_truck_id','saler','branch','notes'];
       const rows = buildRowsHtml(obj, fields);
       const gmBtn = (isFinite(lat)&&isFinite(lng))
-        ? `<a href="${gmapsUrl(lat,lng)}" target="_blank" rel="noopener" class="mt-2 inline-block text-xs font-semibold text-blue-300 underline">เปิดใน Google Maps</a>`:'';
+        ? `<a href="${gmapsUrl(lat,lng)}" target="_blank" rel="noopener" class="mt-2 inline-block text-xs font-semibold text-blue-600 underline">เปิดใน Google Maps</a>`:'';
       return `<div class="text-sm">
         <div class="mb-1 font-bold">${obj.customer_name||obj.leads_name||obj.truck_id}</div>
         <table class="text-xs">${rows}</table>
@@ -310,7 +352,7 @@
       </div>`;
     }
 
-    // radius multiple choice selection
+    // ดึงรายการสาขาที่เลือกใน multiple choice
     function getSelectedRadiusBranches(){
       const nodes = document.querySelectorAll('.radiusChoice');
       return Array.from(nodes)
@@ -319,8 +361,6 @@
         .filter(v => !!BRANCH_RADIUS_CENTERS[v]);
     }
 
-    // ✅ Filter ใช้ person_incharge (Customers) และ Leads ใช้ saler (ถ้าต้องการกรองตามผู้รับผิดชอบร่วมกัน)
-    //    ตอนนี้ requirement คือ "ผู้รับผิดชอบ" จาก Customers.person_incharge
     function passFilters(item){
       const b = branchFilter.value;
       const m = managerFilter.value;
@@ -328,25 +368,12 @@
       const s = statusFilter.value;
       const selectedBranches = getSelectedRadiusBranches();
 
-      // Branch: Customers.branch | Leads._branch (derive from customer_id)
-      if(b){
-        const itemBranch = (item._branch || item.branch || "");
-        if(itemBranch !== b) return false;
-      }
-
-      // ผู้รับผิดชอบ: ใช้ person_incharge (Customers เท่านั้น)
-      if(m && (item.person_incharge||'')!==m) return false;
-
-      // Truck filter: customer.truck_id OR lead.nearest_truck_id
-      if(t){
-        const v = (item.truck_id || item.nearest_truck_id || "");
-        if(v !== t) return false;
-      }
-
-      // Status filter: ใช้ _statusTH (Customers เท่านั้น)
+      if(b && (item.branch||'')!==b) return false;
+      if(m && (item.manager_incharge||'')!==m) return false;
+      if(t && (item.truck_id||item.nearest_truck_id||'')!==t) return false;
       if(s && (item._statusTH||'')!==s) return false;
 
-      // Radius filter
+      // ถ้ามีเลือกสาขารัศมี → ต้องอยู่ในอย่างน้อย 1 วง (OR)
       if(selectedBranches.length){
         const lat = parseFloat(item.latitude||item.lat||item.lattitude);
         const lng = parseFloat(item.longitude||item.lng||item.longtitude||item.lon);
@@ -367,25 +394,17 @@
       return true;
     }
 
-
     function setSummary({customers, leads}){
       sumCustomers.textContent = customers.length;
       sumLeads.textContent = leads.length;
-    
-      sumActive.textContent  = customers.filter(c => (c._statusTH||'')==='ลูกค้า Active').length;
-      sumRisky.textContent   = customers.filter(c => (c._statusTH||'')==='เสี่ยงที่จะเป็นลูกค้าหาย').length;
-      sumLost.textContent    = customers.filter(c => (c._statusTH||'')==='ลูกค้าหาย').length;
-    
-      // ✅ เพิ่ม 2 สถานะใหม่
-      sumWinback.textContent = customers.filter(c => (c._statusTH||'')==='ลูกค้ากลับมา/ลูกค้าใหม่').length;
-      sumDormant.textContent = customers.filter(c => (c._statusTH||'')==='หายเกิน 60 วัน').length;
+      sumActive.textContent = customers.filter(c => (c._statusTH||'')==='ลูกค้า Active').length;
+      sumRisky.textContent  = customers.filter(c => (c._statusTH||'')==='เสี่ยงที่จะเป็นลูกค้าหาย').length;
+      sumLost.textContent   = customers.filter(c => (c._statusTH||'')==='ลูกค้าหาย').length;
     }
-
 
     // Map + Layers
     const map = L.map('map');
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
-
     const layerCustomers=L.layerGroup().addTo(map),
           layerLeads=L.layerGroup().addTo(map),
           layerTrucks=L.layerGroup().addTo(map),
@@ -401,12 +420,13 @@
       layerLines.clearLayers();
       layerRadius.clearLayers();
 
-      // Draw selected radius circles
+      // วาดวงกลมรัศมี 100 กม. ทุกสาขาที่ถูกเลือก + สีประจำสาขา
       const selectedBranches = getSelectedRadiusBranches();
       selectedBranches.forEach(code=>{
         const c = BRANCH_RADIUS_CENTERS[code];
         if(!c) return;
         const col = RADIUS_COLORS[code] || { stroke: "#0ea5e9", fill: "#0ea5e9" };
+
         L.circle([c.lat, c.lng], {
           radius: RADIUS_FILTER_KM * 1000,
           color: col.stroke,
@@ -427,7 +447,7 @@
       });
 
       const cust = data.customers.filter(passFilters);
-      const leads = (toggleLeads.checked ? data.leads : []).filter(passFilters);
+      const leads = (toggleLeads.checked? data.leads: []).filter(passFilters);
 
       // Customers
       cust.forEach(c=>{
@@ -456,10 +476,8 @@
         const marker = L.marker([lat,lng], { icon: makePinIcon(pinCol) })
           .bindTooltip(tooltipHtml(l,'lead'), { className:'my', sticky:true })
           .addTo(layerLeads);
-
         marker.on('click', ()=>{ marker.bindPopup(popupHtml(l,'lead'), {autoClose:true, closeOnClick:true, className:'my'}).openPopup(); });
 
-        // draw line to nearest truck (computed)
         if(wantNearest){
           let best={d:Infinity,t:null};
           data.trucks.forEach(t=>{
@@ -475,7 +493,6 @@
         }
       });
 
-      // Fit bounds
       const all=[];
       layerCustomers.eachLayer(l=>all.push(l.getLatLng()));
       layerLeads.eachLayer(l=>all.push(l.getLatLng()));
@@ -486,25 +503,18 @@
       });
 
       if(all.length) map.fitBounds(L.latLngBounds(all),{padding:[60,60]});
-
       setSummary({customers:cust,leads});
     }
 
     async function loadAndRender(){
       try{
         errorBox.classList.add('hidden');
-
-        const [settings, customersRaw, leadsRaw, trucks] = await Promise.all([
-          fetchSheet(SHEETS.settings),
-          fetchSheet(SHEETS.customers),
-          fetchSheet(SHEETS.leads),
-          fetchSheet(SHEETS.trucks)
+        const [settings, customersRaw, leads, trucks] = await Promise.all([
+          fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
         ]);
 
-        // Customers: add TH status
         const customersData = customersRaw.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
 
-        // Trucks: color map
         truckColorMap = {};
         trucks.forEach(t=>{
           const key = normId(t.truck_id);
@@ -512,26 +522,8 @@
           if (key && col) truckColorMap[key] = col;
         });
 
-        // ✅ Leads: normalize keys + derive _branch from customer_id (Customers table)
-        const customerBranchById = {};
-        customersData.forEach(c => {
-          const id = (c.customer_id || "").toString().trim();
-          if (id) customerBranchById[id] = c.branch || "";
-        });
+        data={settings, customers: customersData, leads, trucks};
 
-        const leadsData = leadsRaw.map(l => {
-          const cid = (l.customer_id || "").toString().trim();
-          return {
-            ...l,
-            _branch: customerBranchById[cid] || "",
-            // รองรับ header จริงในชีท: nearest_truck_i
-            nearest_truck_id: l.nearest_truck_id || l.nearest_truck_i || ""
-          };
-        });
-
-        data = { settings, customers: customersData, leads: leadsData, trucks };
-
-        // Settings: map center
         const findVal = key => (settings.find(r => (r.key||r.Key||r.setting||'').toString().toUpperCase()===key) || {}).value;
         const cLat = parseFloat(findVal('CENTER_LAT')||16.43),
               cLng = parseFloat(findVal('CENTER_LNG')||103.49),
@@ -543,20 +535,12 @@
           el.append(new Option('ทั้งหมด',''));
           opts.forEach(o=>el.append(new Option(o,o)));
         };
-
-        // Branch options from Customers only (Leads ไม่มี branch จริง)
-        setOpts(branchFilter, uniqueSorted(customersData.map(c=>c.branch)));
-
-        // ✅ ผู้รับผิดชอบจาก Customers.person_incharge
-        setOpts(managerFilter, uniqueSorted(customersData.map(c=>c.person_incharge)));
-
-        // Truck options from Trucks table
-        setOpts(truckFilter, uniqueSorted(trucks.map(t=>t.truck_id)));
+        setOpts(branchFilter,  uniqueSorted([ ...customersData.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
+        setOpts(managerFilter, uniqueSorted([ ...customersData.map(c=>c.manager_incharge), ...trucks.map(t=>t.manager_incharge) ]));
+        setOpts(truckFilter,   uniqueSorted(trucks.map(t=>t.truck_id)));
 
         render();
-      }catch(err){
-        showError(err.message||String(err));
-      }
+      }catch(err){ showError(err.message||String(err)); }
     }
 
     // Export (filtered) to Excel
@@ -565,28 +549,23 @@
         const filteredCustomers = data.customers.filter(passFilters);
         const filteredLeads = (toggleLeads.checked ? data.leads : []).filter(passFilters);
 
-       
-          const customerColumns = [
+        const customerColumns = [
           ['customer_id','Customer ID'],
           ['customer_name','ชื่อลูกค้า'],
           ['_statusTH','สถานะลูกค้า (TH)'],
           ['branch','สาขา'],
           ['truck_id','รหัสรถมิเตอร์'],
-          ['person_incharge','ผู้รับผิดชอบ'],
+          ['manager_incharge','ผู้จัดการรับผิดชอบ'],
           ['lastest_sales','ยอดขายล่าสุด'],
           ['notes','หมายเหตุ'],
           ['latitude','Latitude'],
           ['longitude','Longitude']
         ];
-
-        // ✅ Leads columns ตาม source จริง + nearest_truck_i รองรับแล้วผ่าน nearest_truck_id
         const leadColumns = [
-          ['lead_id','Lead ID'],
           ['leads_name','ชื่อลีด'],
           ['status','สถานะลีด'],
+          ['branch','สาขา'],
           ['saler','พนักงานขายผู้ดูแล'],
-          ['customer_id','Customer ID'],
-          ['_branch','สาขา (จาก Customer)'],
           ['nearest_truck_id','รถที่ใกล้สุด'],
           ['province','จังหวัด'],
           ['district','อำเภอ/เขต'],
@@ -629,7 +608,7 @@
         const t=truckFilter.value || 'All';
         const s=statusFilter.value || 'All';
         const dateStr = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
-        const filename = `KCP-Export_${dateStr}_B-${b}_PIC-${m}_T-${t}_S-${s}.xlsx`.replace(/[\\/:*?"<>|]+/g,'-');
+        const filename = `KCP-Export_${dateStr}_B-${b}_M-${m}_T-${t}_S-${s}.xlsx`.replace(/[\\/:*?"<>|]+/g,'-');
 
         XLSX.writeFile(wb, filename);
       }catch(err){
@@ -637,8 +616,8 @@
       }
     }
 
-    // UI bindings
-    btnRefresh.onclick = ()=>loadAndRender();
+    // UI
+    btnRefresh.onclick = ()=>loadAndRender(true);
     btnReset.onclick = ()=>{
       [branchFilter,managerFilter,truckFilter,statusFilter].forEach(el=>el.value="");
       document.querySelectorAll('.radiusChoice').forEach(ch=>{ ch.checked=false; });
@@ -647,16 +626,271 @@
 
     [branchFilter,managerFilter,truckFilter,statusFilter,toggleLeads,toggleNearest]
       .forEach(el=> el.addEventListener('change',render));
-
+    // radius multiple choice
     document.querySelectorAll('.radiusChoice').forEach(el=>{
       el.addEventListener('change', render);
     });
 
     btnExport.onclick = exportFilteredToExcel;
 
-    // Init
     loadAndRender();
-    setInterval(loadAndRender,300000); // 5 นาที
-  </script>
+    setInterval(loadAndRender,300000);
+  
+  // -----------------------------
+  // Tabs
+  // -----------------------------
+  const tabMap = document.getElementById('tabMap');
+  const tabDash = document.getElementById('tabDash');
+  const viewMap = document.getElementById('viewMap');
+  const viewDash = document.getElementById('viewDash');
+
+  function setTab(which){
+    if(which==='map'){
+      viewMap.classList.remove('hidden');
+      viewDash.classList.add('hidden');
+      tabMap.className = "px-3 py-2 text-sm rounded-xl bg-gray-900 text-white shadow";
+      tabDash.className = "px-3 py-2 text-sm rounded-xl bg-white/90 backdrop-blur border border-gray-200 text-gray-800 shadow";
+      // Leaflet needs size invalidation when returning
+      try { map?.invalidateSize?.(); } catch(e){}
+    }else{
+      viewDash.classList.remove('hidden');
+      viewMap.classList.add('hidden');
+      tabDash.className = "px-3 py-2 text-sm rounded-xl bg-gray-900 text-white shadow";
+      tabMap.className = "px-3 py-2 text-sm rounded-xl bg-white/90 backdrop-blur border border-gray-200 text-gray-800 shadow";
+      loadDash(false);
+    }
+  }
+  tabMap.addEventListener('click', ()=>setTab('map'));
+  tabDash.addEventListener('click', ()=>setTab('dash'));
+
+  // -----------------------------
+  // Dashboard (CRM Dataset)
+  // -----------------------------
+  const crmOwnerFilter = document.getElementById('crmOwnerFilter');
+  const btnDashRefresh = document.getElementById('btnDashRefresh');
+
+  const kpiTaskTotal = document.getElementById('kpiTaskTotal');
+  const kpiTaskFollow = document.getElementById('kpiTaskFollow');
+  const kpiTaskRate = document.getElementById('kpiTaskRate');
+  const kpiTaskDone = document.getElementById('kpiTaskDone');
+
+  const kpiLeadTotal = document.getElementById('kpiLeadTotal');
+  const kpiLeadFollow = document.getElementById('kpiLeadFollow');
+  const kpiLeadRate = document.getElementById('kpiLeadRate');
+  const kpiLeadWon = document.getElementById('kpiLeadWon');
+
+  const truckTableBody = document.getElementById('truckTableBody');
+
+  let chartTaskStatus, chartLeadStatus, chartTaskContact, chartTaskChannel;
+
+  const CRM_COLS = {
+    id: "Unique_ID",
+    customer: "ชื่อลูกค้า",
+    type: "ประเภทลูกค้า",
+    due: "วันที่ต้องทำ",
+    owner: "ผู้รับผิดชอบ",
+    done: "เข้าพบ/ติดต่อ สำเร็จแล้ว?",
+    workStatus: "สถานะงาน",
+    nextFollow: "🗓️ วันที่ที่ต้องติดตามต่อ",
+    note: "โน้ตจากการติดต่อ/เข้าพบ",
+    bu: "BU",
+    pipeline: "Pipeline",
+    saleChannel: "ช่องทางการขาย",
+    contactChannel: "ช่องทางการติดต่อ",
+  };
+
+  function norm(v){ return (v==null?'':String(v)).trim(); }
+  function isLeadRow(r){ return norm(r[CRM_COLS.type]).toLowerCase().includes('lead') || norm(r[CRM_COLS.type]).includes('ลูกค้ามุ่งหวัง'); }
+  function isDoneRow(r){
+    const d = String(r[CRM_COLS.done]).toUpperCase().trim();
+    const ws = norm(r[CRM_COLS.workStatus]);
+    return d === "TRUE" || ws === "เสร็จ" || ws === "สำเร็จ";
+  }
+  function pct(a,b){ return (b ? (a/b*100) : 0).toFixed(2) + "%"; }
+
+  function destroyChart(c){ try{ c?.destroy?.(); }catch(e){} }
+
+  function makeDoughnut(canvasId, labels, values){
+    const ctx = document.getElementById(canvasId);
+    return new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: values }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { boxWidth: 10, usePointStyle: true } },
+          tooltip: { callbacks: { label: (c)=> `${c.label}: ${c.raw}` } }
+        },
+        cutout: '60%'
+      }
+    });
+  }
+
+  function makeBar(canvasId, labels, values){
+    const ctx = document.getElementById(canvasId);
+    return new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{ data: values }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display:false } },
+        scales: { x: { ticks: { autoSkip:false } }, y: { beginAtZero:true } }
+      }
+    });
+  }
+
+  function groupCount(rows, keyFn){
+    const m = new Map();
+    rows.forEach(r=>{
+      const k = norm(keyFn(r));
+      if(!k) return;
+      m.set(k, (m.get(k)||0)+1);
+    });
+    return [...m.entries()].sort((a,b)=>b[1]-a[1]);
+  }
+
+  async function loadDash(skipInit){
+    try{
+      const dataset = await fetchSheet(CRM_SHEETS.dataset, CRM_SHEET_ID);
+
+      // owner options
+      if(!skipInit){
+        const owners = uniqueSorted(dataset.map(r=>norm(r[CRM_COLS.owner])).filter(Boolean));
+        crmOwnerFilter.innerHTML = "";
+        crmOwnerFilter.append(new Option("ทั้งหมด",""));
+        owners.forEach(o=>crmOwnerFilter.append(new Option(o,o)));
+      }
+
+      const ownerSel = crmOwnerFilter.value;
+      const rows = ownerSel ? dataset.filter(r=>norm(r[CRM_COLS.owner])===ownerSel) : dataset;
+
+      const tasks = rows.filter(r=>!isLeadRow(r));
+      const leads = rows.filter(r=>isLeadRow(r));
+
+      // KPI Tasks: distinct customer
+      const taskCustomers = new Set(tasks.map(r=>norm(r[CRM_COLS.customer])).filter(Boolean));
+      const taskDoneCustomers = new Set(tasks.filter(isDoneRow).map(r=>norm(r[CRM_COLS.customer])).filter(Boolean));
+      const taskTotal = taskCustomers.size;
+      const taskDone = taskDoneCustomers.size;
+      const taskFollow = Math.max(0, taskTotal - taskDone);
+
+      // KPI Leads
+      const leadCustomers = new Set(leads.map(r=>norm(r[CRM_COLS.customer])).filter(Boolean));
+      const leadWonCustomers = new Set(leads.filter(isDoneRow).map(r=>norm(r[CRM_COLS.customer])).filter(Boolean));
+      const leadTotal = leadCustomers.size;
+      const leadWon = leadWonCustomers.size;
+      const leadFollow = Math.max(0, leadTotal - leadWon);
+
+      kpiTaskTotal.textContent = taskTotal.toLocaleString();
+      kpiTaskDone.textContent = taskDone.toLocaleString();
+      kpiTaskFollow.textContent = taskFollow.toLocaleString();
+      kpiTaskRate.textContent = pct(taskDone, taskTotal);
+
+      kpiLeadTotal.textContent = leadTotal.toLocaleString();
+      kpiLeadWon.textContent = leadWon.toLocaleString();
+      kpiLeadFollow.textContent = leadFollow.toLocaleString();
+      kpiLeadRate.textContent = pct(leadWon, leadTotal);
+
+      // Charts: status distribution
+      const taskStatus = groupCount(tasks, r=>r[CRM_COLS.workStatus]);
+      const leadStatus = groupCount(leads, r=>r[CRM_COLS.workStatus]);
+
+      // show top 8 + other to keep chart clean
+      function topNwithOther(arr, n=8){
+        if(arr.length<=n) return arr;
+        const top = arr.slice(0,n);
+        const other = arr.slice(n).reduce((s,[_k,v])=>s+v,0);
+        top.push(["อื่นๆ", other]);
+        return top;
+      }
+
+      const ts = topNwithOther(taskStatus, 8);
+      const ls = topNwithOther(leadStatus, 8);
+
+      destroyChart(chartTaskStatus);
+      chartTaskStatus = makeDoughnut('chartTaskStatus', ts.map(x=>x[0]||'(ว่าง)'), ts.map(x=>x[1]));
+
+      destroyChart(chartLeadStatus);
+      chartLeadStatus = makeDoughnut('chartLeadStatus', ls.map(x=>x[0]||'(ว่าง)'), ls.map(x=>x[1]));
+
+      // Charts: contact & sale channels (tasks only)
+      const tc = topNwithOther(groupCount(tasks, r=>r[CRM_COLS.contactChannel]), 10);
+      destroyChart(chartTaskContact);
+      chartTaskContact = new Chart(document.getElementById('chartTaskContact'), {
+        type:'bar',
+        data:{ labels: tc.map(x=>x[0]||'(ว่าง)'), datasets:[{ data: tc.map(x=>x[1]) }] },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false}},
+          scales:{ x:{ ticks:{ autoSkip:false, maxRotation:40, minRotation:0 } }, y:{ beginAtZero:true } }
+        }
+      });
+
+      const sc = topNwithOther(groupCount(tasks, r=>r[CRM_COLS.saleChannel]), 10);
+      destroyChart(chartTaskChannel);
+      chartTaskChannel = new Chart(document.getElementById('chartTaskChannel'), {
+        type:'bar',
+        data:{ labels: sc.map(x=>x[0]||'(ว่าง)'), datasets:[{ data: sc.map(x=>x[1]) }] },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false}},
+          scales:{ x:{ ticks:{ autoSkip:false, maxRotation:40, minRotation:0 } }, y:{ beginAtZero:true } }
+        }
+      });
+
+      // Truck summary from already-loaded customers (map sheet)
+      renderTruckSummary(customersData);
+
+    }catch(err){
+      showError("Dashboard error: " + (err.message||String(err)));
+    }
+  }
+
+  btnDashRefresh.addEventListener('click', ()=>loadDash(true));
+  crmOwnerFilter.addEventListener('change', ()=>loadDash(true));
+
+  function renderTruckSummary(customers){
+    const byTruck = {};
+    customers.forEach(c=>{
+      const truck = norm(c.truck_id);
+      if(!truck) return;
+      if(!byTruck[truck]){
+        byTruck[truck] = { truck, total:0, active:0, risky:0, lost:0, winback:0, dormant:0, owners:{} };
+      }
+      const g = byTruck[truck];
+      g.total++;
+
+      const owner = norm(c.person_incharge);
+      if(owner) g.owners[owner] = (g.owners[owner]||0)+1;
+
+      const st = norm(c._statusTH);
+      if(st==="ลูกค้า Active") g.active++;
+      else if(st==="เสี่ยงที่จะเป็นลูกค้าหาย") g.risky++;
+      else if(st==="ลูกค้าหาย") g.lost++;
+      else if(st==="ลูกค้ากลับมา/ลูกค้าใหม่") g.winback++;
+      else if(st==="หายเกิน 60 วัน") g.dormant++;
+    });
+
+    const rows = Object.values(byTruck).sort((a,b)=>a.truck.localeCompare(b.truck,'en'));
+    truckTableBody.innerHTML = rows.map(r=>{
+      const topOwners = Object.entries(r.owners).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,c])=>`${n} (${c})`).join(", ");
+      return `
+        <tr class="border-t">
+          <td class="p-2 font-semibold">${r.truck}</td>
+          <td class="p-2">${topOwners || "-"}</td>
+          <td class="p-2 text-right">${r.total}</td>
+          <td class="p-2 text-right">${r.active}</td>
+          <td class="p-2 text-right">${r.risky}</td>
+          <td class="p-2 text-right">${r.lost}</td>
+          <td class="p-2 text-right">${r.winback}</td>
+          <td class="p-2 text-right">${r.dormant}</td>
+        </tr>
+      `;
+    }).join("");
+  }
+
+</script>
 </body>
 </html>
