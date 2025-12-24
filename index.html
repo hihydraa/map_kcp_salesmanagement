@@ -995,24 +995,35 @@ html, body { height: 100%; margin: 0; }
       });
 
       // Customers Visualize + Truck summary (from Map Customers)
+     // ---------------------------------------------------------
+      // ส่วนที่แก้ไข: ให้กราฟด้านล่างใช้ข้อมูลทั้งหมด ไม่ต้องกรองตามวันที่
+      // ---------------------------------------------------------
+      
       const customersAll = (typeof data!=='undefined' && data && Array.isArray(data.customers)) ? data.customers : [];
-      // date range filter (Customers uses 'lastest_sales')
-      let customers = customersAll;
+      
+      // ลบ หรือ Comment Out ส่วนนี้ออกครับ (โค้ดเดิมที่ทำการกรองวันที่)
+      /* let customers = customersAll;
       if(dr.start || dr.end){
         customers = customersAll.filter(c=>{
           const d = parseDateFlexible(c.lastest_sales);
           return inRange(d, dr.start, dr.end);
         });
       }
-      renderCustomerVisuals(customers);
-      renderTruckSummary(customers);
-      renderTruckEfficiencyChart(customers);
+      */
 
-    }catch(err){
+      // เปลี่ยนไปเรียกใช้ customersAll (ข้อมูลดิบทั้งหมด) แทน customers (ตัวที่กรองแล้ว)
+      renderCustomerVisuals(customersAll);
+      renderTruckSummary(customersAll);
+      
+      // ถ้าคุณใส่กราฟ Efficiency ที่ผมให้ไปล่าสุดแล้ว อย่าลืมบรรทัดนี้ด้วย
+      if(typeof renderTruckEfficiencyChart === 'function') {
+        renderTruckEfficiencyChart(customersAll);
+      }
+
+    } catch(err) {
       showError("Dashboard error: " + (err.message||String(err)));
     }
   }
-
   btnDashRefresh.addEventListener('click', ()=>loadDash(true));
   crmOwnerFilter.addEventListener('change', ()=>loadDash(true));
   dashStartDate?.addEventListener('change', ()=>loadDash(true));
