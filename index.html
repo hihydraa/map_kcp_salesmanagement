@@ -331,16 +331,51 @@ html, body { height: 100%; margin: 0; }
       return '#EF4444';
     }
 
+
+     // ✅ Map customer status (จากชีท Customers.status) -> TH
     function mapStatusTH(raw){
       if(raw==null) return "";
       const s = String(raw).trim();
       const sl = s.toLowerCase();
+
       if (sl === 'active') return 'ลูกค้า Active';
       if (sl === 'risky to lost') return 'เสี่ยงที่จะเป็นลูกค้าหาย';
       if (sl === 'lost customer') return 'ลูกค้าหาย';
+
+      if (sl === 'winback/new customer' || sl === 'winback' || sl === 'new customer' || sl === 'new')
+        return 'ลูกค้ากลับมา/ลูกค้าใหม่';
+
+      if (sl === 'dormant >60' || sl === 'dormant' || sl === 'deep lost' || sl === 'lost >60')
+        return 'หายเกิน 60 วัน';
+
       if (s === 'ลูกค้า active') return 'ลูกค้า Active';
       return s;
     }
+
+   
+    const FIELD_LABELS = {
+  customer_id: "รหัสลูกค้า",
+  customer_name: "ชื่อลูกค้า",
+  _statusTH: "สถานะลูกค้า",
+  branch: "สาขา",
+  truck_id: "รถ",
+  person_incharge: "ผู้รับผิดชอบ",
+  lastest_sales: "บิลขายล่าสุด",
+  notes: "หมายเหตุ",
+  latitude: "Latitude",
+  longitude: "Longtitude",
+
+  // Leads (เผื่อใช้)
+  lead_id: "รหัส Lead",
+  leads_name: "ชื่อลีด",
+  status: "สถานะ Lead",
+  saler: "พนักงานขาย",
+  province: "จังหวัด",
+  district: "อำเภอ",
+  nearest_truck_id: "รถที่ใกล้ที่สุด"
+};
+
+
 
     function buildRowsHtml(obj, fields){
       return fields
