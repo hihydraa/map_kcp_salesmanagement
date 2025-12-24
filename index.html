@@ -444,21 +444,38 @@ html, body { height: 100%; margin: 0; }
       DORMANT: "Dormant>60",
     };
 
-
     function passFilters(item){
       const b = branchFilter.value;
       const m = managerFilter.value;
       const t = truckFilter.value;
-      const s = statusFilter.value;
+      const s = statusFilter.value; // ACTIVE/RISKY/LOST/WINBACK/DORMANT
       const selectedBranches = getSelectedRadiusBranches();
-
-      if(b && (item.branch||'')!==b) return false;
-      if(m && (item.person_incharge||'')!==m) return false;
-      if(t && (item.truck_id||item.nearest_truck_id||'')!==t) return false;
-      if (s) {
-        const wantTH = STATUS_CODE_TO_TH[s] || s;
-        if ((item._statusTH || "") !== wantTH) return false;
+    
+      if (b && (item.branch||'') !== b) return false;
+      if (m && (item.person_incharge||'') !== m) return false;
+      if (t && (item.truck_id || item.nearest_truck_id || '') !== t) return false;
+    
+      // ✅ กรองสถานะด้วย "รหัส" ที่เราจะใส่ให้ item ตอนโหลดข้อมูล (ดูข้อ B)
+      if (s && (item._statusCode || '') !== s) return false;
+    
+      if (selectedBranches.length){
+        const lat = parseFloat(item.latitude||item.lat||item.lattitude);
+        const lng = parseFloat(item.longitude||item.lng||item.longtitude||item.lon);
+        if(!isFinite(lat) || !isFinite(lng)) return false;
+    
+        let insideAny = false;
+        for(const code of selectedBranches){
+          const center = BRANCH_RADIUS_CENTERS[code];
+          const d = haversineKm(center.lat, center.lng, lat, lng);
+          if(d <= RADIUS_FILTER_KM){ insideAny = true; break; }
+        }
+        if(!insideAny) return false;
       }
+    
+      return true;
+    }
+
+
 
 
       // ถ้ามีเลือกสาขารัศมี → ต้องอยู่ในอย่างน้อย 1 วง (OR)
@@ -680,7 +697,18 @@ html, body { height: 100%; margin: 0; }
           });
         };
 
-        const customerData = mapRows(filteredCustomers, customerColumns);
+        const customersData = customersRaw.map(c => {
+        const th = mapStatusTH(c.status);
+        const code =
+            th === 'ลูกค้า Active' ? 'ACTIVE' :
+            th === 'เสี่ยงที่จะเป็นลูกค้าหาย' ? 'RISKY' :
+            th === 'ลูกค้าหาย' ? 'LOST' :
+            th === 'ลูกค้ากลับมา/ลูกค้าใหม่' ? 'WINBACK' :
+            th === 'หายเกิน 60 วัน' ? 'DORMANT' :
+            '';
+          return { ...c, _statusTH: th, _statusCode: code };
+        });
+
         const leadData = mapRows(filteredLeads, leadColumns);
 
         const wb = XLSX.utils.book_new();
