@@ -208,6 +208,15 @@ html, body { height: 100%; margin: 0; }
       </div>
 
 <!-- Truck summary -->
+      <div class="rounded-2xl border bg-white p-4 shadow-sm mb-4">
+        <div class="flex items-end justify-between mb-2">
+          <div>
+            <div class="font-bold text-gray-900">Truck Efficiency: คุณภาพพอร์ตลูกค้าตามรถ (100%)</div>
+            <div class="text-xs text-gray-500">เรียงตาม % Active (มากไปน้อย) • ช่วยระบุรถที่ต้องการการดูแลเป็นพิเศษ</div>
+          </div>
+        </div>
+        <div class="h-[500px]"><canvas id="chartTruckEfficiency"></canvas></div>
+      </div>
       <div class="rounded-2xl border bg-white p-4 shadow-sm">
         <div class="flex items-end justify-between gap-3 mb-2">
           <div>
@@ -997,6 +1006,7 @@ html, body { height: 100%; margin: 0; }
       }
       renderCustomerVisuals(customers);
       renderTruckSummary(customers);
+      renderTruckEfficiencyChart(customers);
 
     }catch(err){
       showError("Dashboard error: " + (err.message||String(err)));
@@ -1089,6 +1099,101 @@ function renderTruckSummary(customers){
         </tr>
       `;
     }).join("");
+  }
+    let chartTruckEfficiency; // ประกาศตัวแปร Global ไว้เก็บ Instance กราฟ
+
+  function renderTruckEfficiencyChart(customers) {
+    // 1. เตรียมข้อมูล: Group ลูกค้าตามรถ
+    const trucks = {};
+    customers.forEach(c => {
+      const tid = norm(c.truck_id);
+      if (!tid) return;
+      
+      if (!trucks[tid]) {
+        trucks[tid] = { id: tid, total: 0, counts: { 'ACTIVE': 0, 'WINBACK': 0, 'RISKY': 0, 'LOST': 0, 'DORMANT': 0 } };
+      }
+      
+      trucks[tid].total++;
+      const st = norm(c._statusTH);
+      
+      // Map สถานะภาษาไทย กลับเป็น Key ภาษาอังกฤษเพื่อใช้ง่ายๆ
+      if (st === "ลูกค้า Active") trucks[tid].counts.ACTIVE++;
+      else if (st === "ลูกค้ากลับมา/ลูกค้าใหม่") trucks[tid].counts.WINBACK++;
+      else if (st === "เสี่ยงที่จะเป็นลูกค้าหาย") trucks[tid].counts.RISKY++;
+      else if (st === "ลูกค้าหาย") trucks[tid].counts.LOST++;
+      else if (st === "หายเกิน 60 วัน") trucks[tid].counts.DORMANT++;
+      else trucks[tid].counts.LOST++; // กรณีอื่นๆ ปัดเป็น Lost หรือจัดการตามเหมาะสม
+    });
+
+    // 2. แปลงเป็น Array และคำนวณ % เพื่อใช้เรียงลำดับ
+    let truckArray = Object.values(trucks).map(t => {
+      const activeRate = t.total > 0 ? (t.counts.ACTIVE / t.total) * 100 : 0;
+      return { ...t, activeRate };
+    });
+
+    // 3. เรียงลำดับ: เอาคนที่ Active Rate สูงสุดขึ้นก่อน (Best Performer Top)
+    truckArray.sort((a, b) => b.activeRate - a.activeRate);
+
+    // ตัด Top 20 คันแรก (ถ้ามีเยอะเกินไปกราฟจะดูยาก)
+    // truckArray = truckArray.slice(0, 20); 
+
+    const labels = truckArray.map(t => t.id);
+
+    // Helper: สร้าง Dataset แบบ %
+    const makeDataset = (label, color, key) => ({
+      label: label,
+      data: truckArray.map(t => t.total > 0 ? (t.counts[key] / t.total * 100) : 0),
+      backgroundColor: color,
+      stack: 'Stack 0',
+      // เก็บข้อมูลดิบ (จำนวนคน) ไว้ใน custom property เพื่อโชว์ใน Tooltip
+      rawCounts: truckArray.map(t => t.counts[key]) 
+    });
+
+    // 4. Config Datasets (เรียงลำดับสีตามความหมาย: ดี -> แย่)
+    const datasets = [
+      makeDataset('ลูกค้า Active', '#10b981', 'ACTIVE'),       // เขียว
+      makeDataset('Winback/New', '#3b82f6', 'WINBACK'),      // ฟ้า
+      makeDataset('เสี่ยง (Risky)', '#f59e0b', 'RISKY'),     // ส้ม
+      makeDataset('ลูกค้าหาย (Lost)', '#ef4444', 'LOST'),    // แดง
+      makeDataset('Dormant >60', '#6b7280', 'DORMANT')       // เทา
+    ];
+
+    // 5. สร้างกราฟ
+    destroyChart(chartTruckEfficiency); // ล้างกราฟเก่าถ้ามี (ใช้ฟังก์ชัน destroyChart เดิมของคุณ)
+    
+    const ctx = document.getElementById('chartTruckEfficiency').getContext('2d');
+    chartTruckEfficiency = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets },
+      options: {
+        indexAxis: 'y', // กราฟแนวนอน
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const val = context.raw.toFixed(1); // %
+                const count = context.dataset.rawCounts[context.dataIndex]; // จำนวนคน
+                return `${context.dataset.label}: ${count} ราย (${val}%)`;
+              }
+            }
+          },
+          legend: { position: 'top' }
+        },
+        scales: {
+          x: { 
+            stacked: true, 
+            max: 100, // บังคับแกน X เต็ม 100%
+            title: { display: true, text: 'สัดส่วนลูกค้า (%)' }
+          },
+          y: { 
+            stacked: true,
+            grid: { display: false }
+          }
+        }
+      }
+    });
   }
 
 </script>
