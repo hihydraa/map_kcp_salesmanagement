@@ -531,14 +531,14 @@
         const filteredLeads = (toggleLeads.checked ? data.leads : []).filter(passFilters);
 
         const customerColumns = [
-          ['customer_id','Customer ID'],
-          ['customer_name','ชื่อลูกค้า'],
-          ['_statusTH','สถานะลูกค้า (TH)'],
-          ['branch','สาขา'],
-          ['truck_id','รหัสรถมิเตอร์'],
-          ['person_incharge','ผู้รับผิดชอบ'],
-          ['lastest_sales','ยอดขายล่าสุด'],
-          ['notes','หมายเหตุ'],
+          ['รหัสลูกค้า','Customer ID'],
+          ['ชื่อลูกค้า','ชื่อลูกค้า'],
+          ['สถานะ','สถานะลูกค้า (TH)'],
+          ['สาขา','สาขา'],
+          ['รถ','รหัสรถมิเตอร์'],
+          ['ผู้รับผิดชอบ','ผู้รับผิดชอบ'],
+          ['บิลขายล่าสุด','ยอดขายล่าสุด'],
+          ['หมายเหตุ','หมายเหตุ'],
           ['latitude','Latitude'],
           ['longitude','Longitude']
         ];
@@ -624,4 +624,3 @@
   </script>
 </body>
 </html>
-```
