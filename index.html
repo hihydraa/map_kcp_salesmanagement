@@ -436,12 +436,13 @@ html, body { height: 100%; margin: 0; }
         .filter(v => !!BRANCH_RADIUS_CENTERS[v]);
     }
 
-        const STATUS_CODE_TO_TH = {
+       // ของใหม่ (ถูกต้อง)
+    const STATUS_CODE_TO_TH = {
       ACTIVE: "ลูกค้า Active",
       RISKY: "เสี่ยงที่จะเป็นลูกค้าหาย",
       LOST: "ลูกค้าหาย",
-      WINBACK: "Winback/New",
-      DORMANT: "Dormant>60",
+      WINBACK: "ลูกค้ากลับมา/ลูกค้าใหม่", // แก้ให้ตรงกับ mapStatusTH
+      DORMANT: "หายเกิน 60 วัน",        // แก้ให้ตรงกับ mapStatusTH
     };
 
 
