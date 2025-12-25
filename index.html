@@ -8,14 +8,10 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <!-- SheetJS for Excel export -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
-    
     html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
     #map { position: fixed; inset: 0; height: 100vh; width: 100vw; }
-html, body { height: 100%; margin: 0; }
-    #map { height: 100vh; width: 100vw; }
     .leaflet-tooltip.my {
       background:#111827; color:#fff; border:none;
       border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.2);
@@ -26,96 +22,92 @@ html, body { height: 100%; margin: 0; }
 </head>
 <body class="bg-gray-50">
   
-  <!-- Top Tabs -->
   <div id="topTabs" class="fixed z-[1000] left-4 top-4 flex gap-2">
     <button id="tabMap" class="px-3 py-2 text-sm rounded-xl bg-gray-900 text-white shadow">Map</button>
     <button id="tabDash" class="px-3 py-2 text-sm rounded-xl bg-white/90 backdrop-blur border border-gray-200 text-gray-800 shadow">Dashboard</button>
   </div>
 
   <div id="viewMap">
-<div id="panel" class="fixed z-[999] top-3 left-3 w-[360px] max-w-[92vw] bg-white/95 backdrop-blur border border-gray-200 rounded-2xl shadow-xl">
-    <div class="p-4 border-b">
-      <h1 class="text-xl font-bold text-gray-900">KCP Map For Sales Management (Real-Time)</h1>
-      <p class="text-xs text-gray-500">แผนที่บริหารลูกค้าปัจจุบัน & ลูกค้ามุ่งหวัง (อัพเดตยอดขายถึงวันที่ 23 ธันวาคม)</p>
-    </div>
-    <div class="p-4 flex flex-col gap-3">
-      <div class="grid grid-cols-2 gap-2">
-        <label class="text-xs text-gray-600">สาขา (Branch)
-          <select id="branchFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
-        </label>
-        <label class="text-xs text-gray-600">ผู้รับผิดชอบ
-          <select id="managerFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
-        </label>
-        <label class="text-xs text-gray-600">รถมิเตอร์ (Truck)
-          <select id="truckFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
-        </label>
-        <label class="text-xs text-gray-600">สถานะลูกค้า
-         <select id="statusFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm">
-          <option value="">ทั้งหมด</option>
-          <option value="ACTIVE">ลูกค้า Active</option>
-          <option value="RISKY">เสี่ยงที่จะเป็นลูกค้าหาย</option>
-          <option value="LOST">ลูกค้าหาย</option>
-          <option value="WINBACK">Winback / ลูกค้าใหม่</option>
-          <option value="DORMANT">Dormant > 60 วัน</option>
-        </select>
+    <div id="panel" class="fixed z-[999] top-3 left-3 w-[360px] max-w-[92vw] bg-white/95 backdrop-blur border border-gray-200 rounded-2xl shadow-xl">
+      <div class="p-4 border-b">
+        <h1 class="text-xl font-bold text-gray-900">KCP Map For Sales Management (Real-Time)</h1>
+        <p class="text-xs text-gray-500">แผนที่บริหารลูกค้าปัจจุบัน & ลูกค้ามุ่งหวัง</p>
+      </div>
+      <div class="p-4 flex flex-col gap-3">
+        <div class="grid grid-cols-2 gap-2">
+          <label class="text-xs text-gray-600">สาขา (Branch)
+            <select id="branchFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
+          </label>
+          <label class="text-xs text-gray-600">ผู้รับผิดชอบ
+            <select id="managerFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
+          </label>
+          <label class="text-xs text-gray-600">รถมิเตอร์ (Truck)
+            <select id="truckFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm"></select>
+          </label>
+          <label class="text-xs text-gray-600">สถานะลูกค้า
+           <select id="statusFilter" class="w-full mt-1 rounded-lg border-gray-300 text-sm">
+            <option value="">ทั้งหมด</option>
+            <option value="ACTIVE">ลูกค้า Active</option>
+            <option value="RISKY">เสี่ยงที่จะเป็นลูกค้าหาย</option>
+            <option value="LOST">ลูกค้าหาย</option>
+            <option value="WINBACK">Winback / ลูกค้าใหม่</option>
+            <option value="DORMANT">Dormant > 60 วัน</option>
+           </select>
+          </label>
 
-        </label>
-
-        <!-- ตัวกรองรัศมี 100 กม. หลายสาขา (Multiple choice) -->
-        <div class="col-span-2 text-xs text-gray-600">
-          รัศมี 100 กม. รอบสาขา (เลือกได้หลายสาขา)
-          <div class="mt-1 flex flex-wrap gap-2">
-            <label class="inline-flex items-center gap-1">
-              <input type="checkbox" class="radiusChoice rounded" value="ST" />
-              <span class="text-xs">ST</span>
-            </label>
-            <label class="inline-flex items-center gap-1">
-              <input type="checkbox" class="radiusChoice rounded" value="KN" />
-              <span class="text-xs">KN</span>
-            </label>
-            <label class="inline-flex items-center gap-1">
-              <input type="checkbox" class="radiusChoice rounded" value="MUK" />
-              <span class="text-xs">MUK</span>
-            </label>
-            <label class="inline-flex items-center gap-1">
-              <input type="checkbox" class="radiusChoice rounded" value="WNN" />
-              <span class="text-xs">WNN</span>
-            </label>
+          <div class="col-span-2 text-xs text-gray-600">
+            รัศมี 100 กม. รอบสาขา (เลือกได้หลายสาขา)
+            <div class="mt-1 flex flex-wrap gap-2">
+              <label class="inline-flex items-center gap-1">
+                <input type="checkbox" class="radiusChoice rounded" value="ST" />
+                <span class="text-xs">ST</span>
+              </label>
+              <label class="inline-flex items-center gap-1">
+                <input type="checkbox" class="radiusChoice rounded" value="KN" />
+                <span class="text-xs">KN</span>
+              </label>
+              <label class="inline-flex items-center gap-1">
+                <input type="checkbox" class="radiusChoice rounded" value="MUK" />
+                <span class="text-xs">MUK</span>
+              </label>
+              <label class="inline-flex items-center gap-1">
+                <input type="checkbox" class="radiusChoice rounded" value="WNN" />
+                <span class="text-xs">WNN</span>
+              </label>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="flex items-center gap-3">
-        <label class="inline-flex items-center gap-2 text-sm">
-          <input id="toggleLeads" type="checkbox" class="rounded" checked /> แสดง Leads
-        </label>
-        <label class="inline-flex items-center gap-2 text-sm">
-          <input id="toggleNearest" type="checkbox" class="rounded" checked /> คำนวณรถที่ใกล้สุดให้ Leads
-        </label>
-      </div>
-      <div class="flex gap-2 flex-wrap">
-        <button id="btnRefresh" class="px-3 py-2 text-sm rounded-lg bg-gray-900 text-white">รีเฟรชข้อมูล</button>
-        <button id="btnReset" class="px-3 py-2 text-sm rounded-lg border">ล้างตัวกรอง</button>
-        <button id="btnExport" class="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white">ส่งออก (Excel)</button>
-      </div>
-      <div class="rounded-xl border bg-white p-3">
-        <div class="text-xs text-gray-500 mb-1">สรุป</div>
-        <div id="summary" class="text-sm grid grid-cols-2 gap-x-3 gap-y-1">
-          <div>Customers:</div><div id="sumCustomers" class="font-semibold">-</div>
-          <div>Leads:</div><div id="sumLeads" class="font-semibold">-</div>
-          <div>ลูกค้า Active:</div><div id="sumActive" class="font-semibold">-</div>
-          <div>เสี่ยงที่จะเป็นลูกค้าหาย:</div><div id="sumRisky" class="font-semibold">-</div>
-          <div>ลูกค้าหาย:</div><div id="sumLost" class="font-semibold">-</div>
-          <div>Winback/New:</div><div id="sumWinback" class="font-semibold">-</div>
-          <div>Dormant&gt;60:</div><div id="sumDormant" class="font-semibold">-</div>
-
+        <div class="flex items-center gap-3">
+          <label class="inline-flex items-center gap-2 text-sm">
+            <input id="toggleLeads" type="checkbox" class="rounded" checked /> แสดง Leads
+          </label>
+          <label class="inline-flex items-center gap-2 text-sm">
+            <input id="toggleNearest" type="checkbox" class="rounded" checked /> คำนวณรถที่ใกล้สุดให้ Leads
+          </label>
         </div>
-        <div id="errorBox" class="text-xs text-red-600 mt-2 hidden"></div>
+        <div class="flex gap-2 flex-wrap">
+          <button id="btnRefresh" class="px-3 py-2 text-sm rounded-lg bg-gray-900 text-white">รีเฟรชข้อมูล</button>
+          <button id="btnReset" class="px-3 py-2 text-sm rounded-lg border">ล้างตัวกรอง</button>
+          <button id="btnExport" class="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white">ส่งออก (Excel)</button>
+        </div>
+        <div class="rounded-xl border bg-white p-3">
+          <div class="text-xs text-gray-500 mb-1">สรุป</div>
+          <div id="summary" class="text-sm grid grid-cols-2 gap-x-3 gap-y-1">
+            <div>Customers:</div><div id="sumCustomers" class="font-semibold">-</div>
+            <div>Leads:</div><div id="sumLeads" class="font-semibold">-</div>
+            <div>ลูกค้า Active:</div><div id="sumActive" class="font-semibold">-</div>
+            <div>เสี่ยงที่จะเป็นลูกค้าหาย:</div><div id="sumRisky" class="font-semibold">-</div>
+            <div>ลูกค้าหาย:</div><div id="sumLost" class="font-semibold">-</div>
+            <div>Winback/New:</div><div id="sumWinback" class="font-semibold">-</div>
+            <div>Dormant>60:</div><div id="sumDormant" class="font-semibold">-</div>
+          </div>
+          <div id="errorBox" class="text-xs text-red-600 mt-2 hidden"></div>
+        </div>
+        <div class="text-xs text-gray-500">ตั้งค่าในชีท: <span class="font-mono">Settings</span></div>
       </div>
-      <div class="text-xs text-gray-500">ตั้งค่าในชีท: <span class="font-mono">Settings</span></div>
     </div>
-  </div>
-  <div id="map"></div>
+    <div id="map"></div>
   </div>
 
   <div id="viewDash" class="hidden fixed inset-0 overflow-auto bg-gray-50">
@@ -144,7 +136,6 @@ html, body { height: 100%; margin: 0; }
         </div>
       </div>
 
-      <!-- KPI cards -->
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 mb-4">
         <div class="rounded-2xl border bg-white p-4 shadow-sm">
           <div class="text-xs text-gray-500">Tasks (ไม่ใช่ Leads) • ลูกค้างานทั้งหมด</div>
@@ -168,7 +159,6 @@ html, body { height: 100%; margin: 0; }
         </div>
       </div>
 
-      <!-- Charts -->
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
         <div class="rounded-2xl border bg-white p-4 shadow-sm">
           <div class="font-bold text-gray-900 mb-2">Tasks: สถานะงาน</div>
@@ -191,8 +181,6 @@ html, body { height: 100%; margin: 0; }
         </div>
       </div>
 
-      
-      <!-- Customers Visualize (from Customers sheet) -->
       <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 mb-4">
         <div class="rounded-2xl border bg-white p-4 shadow-sm">
           <div class="flex items-end justify-between mb-2">
@@ -210,7 +198,6 @@ html, body { height: 100%; margin: 0; }
         </div>
       </div>
 
-<!-- Truck summary -->
       <div class="rounded-2xl border bg-white p-4 shadow-sm mb-4">
         <div class="flex items-end justify-between mb-2">
           <div>
@@ -239,7 +226,7 @@ html, body { height: 100%; margin: 0; }
                 <th class="text-right p-2">Risky</th>
                 <th class="text-right p-2">Lost</th>
                 <th class="text-right p-2">Winback/New</th>
-                <th class="text-right p-2">Dormant&gt;60</th>
+                <th class="text-right p-2">Dormant>60</th>
               </tr>
             </thead>
             <tbody id="truckTableBody"></tbody>
@@ -1090,7 +1077,7 @@ html, body { height: 100%; margin: 0; }
     chartTruckRisk = makeBar('chartTruckRisk', tLabels, tValues);
   }
 
-function renderTruckSummary(customers){
+  function renderTruckSummary(customers){
     const byTruck = {};
     
     // 1. Init ข้อมูลรถทุกคันจาก Sheet Trucks (เพื่อดึงชื่อรถและผู้รับผิดชอบตั้งต้น)
@@ -1156,24 +1143,7 @@ function renderTruckSummary(customers){
     }
   }
 
-    const rows = Object.values(byTruck).sort((a,b)=>a.truck.localeCompare(b.truck,'en'));
-    truckTableBody.innerHTML = rows.map(r=>{
-      const topOwners = Object.entries(r.owners).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,c])=>`${n}`).join(", ");
-      return `
-        <tr class="border-t">
-          <td class="p-2 font-semibold">${r.truck}</td>
-          <td class="p-2">${topOwners || "-"}</td>
-          <td class="p-2 text-right">${r.total}</td>
-          <td class="p-2 text-right">${r.active}</td>
-          <td class="p-2 text-right">${r.risky}</td>
-          <td class="p-2 text-right">${r.lost}</td>
-          <td class="p-2 text-right">${r.winback}</td>
-          <td class="p-2 text-right">${r.dormant}</td>
-        </tr>
-      `;
-    }).join("");
-  }
-    let chartTruckEfficiency; // ประกาศตัวแปร Global ไว้เก็บ Instance กราฟ
+  let chartTruckEfficiency; // ประกาศตัวแปร Global ไว้เก็บ Instance กราฟ
 
   function renderTruckEfficiencyChart(customers) {
     // 1. เตรียมข้อมูล: Group ลูกค้าตามรถ
@@ -1270,9 +1240,5 @@ function renderTruckSummary(customers){
   }
 
 </script>
-
-
-
-  
 </body>
 </html>
