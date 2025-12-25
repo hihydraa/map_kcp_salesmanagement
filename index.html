@@ -250,17 +250,16 @@ html, body { height: 100%; margin: 0; }
   </div>
 
 
-  <script>
+<script>
     // -------- CONFIG --------
     const SHEET_ID = "1KicClhZHtMr9bBmwLv31zvb0021SRUcGr2eRRagsO6c";
     const SHEETS = { customers: "Customers", leads: "leads", trucks: "Trucks", settings: "Settings" };
 
-    
-  // --- CRM Dataset (separate Google Sheet) ---
-  const CRM_SHEET_ID = "1Nxbvm7R6AqwTpUtI8AHEVY2HZv0gAnYcrC_lBDTe5os";
-  const CRM_SHEETS = { dataset: "Dataset" };
+    // --- CRM Dataset (separate Google Sheet) ---
+    const CRM_SHEET_ID = "1Nxbvm7R6AqwTpUtI8AHEVY2HZv0gAnYcrC_lBDTe5os";
+    const CRM_SHEETS = { dataset: "Dataset" };
 
-// center แต่ละสาขา + รัศมี 100 กม.
+    // center แต่ละสาขา + รัศมี 100 กม.
     const BRANCH_RADIUS_CENTERS = {
       ST:  { lat: 16.381029272179042, lng: 103.34881852164082 },
       KN:  { lat: 16.71600409911031,  lng: 103.08205194412724 },
@@ -286,14 +285,14 @@ html, body { height: 100%; margin: 0; }
     }
 
     async function fetchSheet(sheetName, sheetId = SHEET_ID) {
-  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&tq=`;
-  const res = await fetch(url, { cache: "no-store" });
-  const text = await res.text();
-  const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
-  const cols = json.table.cols.map(c => c.label || c.id);
-  const rows = json.table.rows.map(r => (r.c || []).map(c => c ? (c.f ?? c.v ?? "") : ""));
-  return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
-}
+      const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}&tq=`;
+      const res = await fetch(url, { cache: "no-store" });
+      const text = await res.text();
+      const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1));
+      const cols = json.table.cols.map(c => c.label || c.id);
+      const rows = json.table.rows.map(r => (r.c || []).map(c => c ? (c.f ?? c.v ?? "") : ""));
+      return rows.map(r => Object.fromEntries(r.map((v,i) => [cols[i] || `col${i+1}`, v])));
+    }
 
 
     // ---------- Helpers ----------
@@ -372,47 +371,47 @@ html, body { height: 100%; margin: 0; }
 
    
     const FIELD_LABELS = {
-  customer_id: "รหัสลูกค้า",
-  customer_name: "ชื่อลูกค้า",
-  _statusTH: "สถานะลูกค้า",
-  branch: "สาขา",
-  truck_id: "รถ",
-  person_incharge: "ผู้รับผิดชอบ",
-  lastest_sales: "บิลขายล่าสุด",
-  notes: "หมายเหตุ",
-  latitude: "Latitude",
-  longitude: "Longtitude",
+      customer_id: "รหัสลูกค้า",
+      customer_name: "ชื่อลูกค้า",
+      _statusTH: "สถานะลูกค้า",
+      branch: "สาขา",
+      truck_id: "รถ",
+      person_incharge: "ผู้รับผิดชอบ",
+      lastest_sales: "บิลขายล่าสุด",
+      notes: "หมายเหตุ",
+      latitude: "Latitude",
+      longitude: "Longtitude",
 
-  // Leads (เผื่อใช้)
-  lead_id: "รหัส Lead",
-  leads_name: "ชื่อลีด",
-  status: "สถานะ Lead",
-  saler: "พนักงานขาย",
-  province: "จังหวัด",
-  district: "อำเภอ",
-  nearest_truck_id: "รถที่ใกล้ที่สุด"
-};
+      // Leads (เผื่อใช้)
+      lead_id: "รหัส Lead",
+      leads_name: "ชื่อลีด",
+      status: "สถานะ Lead",
+      saler: "พนักงานขาย",
+      province: "จังหวัด",
+      district: "อำเภอ",
+      nearest_truck_id: "รถที่ใกล้ที่สุด"
+    };
 
   
-// แก้ไข: เพิ่มพารามิเตอร์ isDark = true เป็นค่าเริ่มต้น
-  function buildRowsHtml(obj, fields, isDark = true){
-    // ถ้า isDark=true (Tooltip) ให้ใช้สีขาว/เทาอ่อน
-    // ถ้า isDark=false (Popup) ให้ใช้สีดำ/เทาเข้ม
-    const labelColor = isDark ? "text-slate-300" : "text-gray-500";
-    const valueColor = isDark ? "text-white" : "text-gray-900";
+    // แก้ไข: เพิ่มพารามิเตอร์ isDark = true เป็นค่าเริ่มต้น
+    function buildRowsHtml(obj, fields, isDark = true){
+      // ถ้า isDark=true (Tooltip) ให้ใช้สีขาว/เทาอ่อน
+      // ถ้า isDark=false (Popup) ให้ใช้สีดำ/เทาเข้ม
+      const labelColor = isDark ? "text-slate-300" : "text-gray-500";
+      const valueColor = isDark ? "text-white" : "text-gray-900";
 
-    return fields
-      .filter(k => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "")
-      .map(k => `<tr>
-        <td class="pr-2 ${labelColor} whitespace-nowrap">
-          ${FIELD_LABELS[k] || k}
-        </td>
-        <td class="font-semibold ${valueColor}">
-          ${obj[k]}
-        </td>
-      </tr>`)
-      .join('');
-  }
+      return fields
+        .filter(k => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "")
+        .map(k => `<tr>
+          <td class="pr-2 ${labelColor} whitespace-nowrap">
+            ${FIELD_LABELS[k] || k}
+          </td>
+          <td class="font-semibold ${valueColor}">
+            ${obj[k]}
+          </td>
+        </tr>`)
+        .join('');
+    }
   
 
     function tooltipHtml(obj,type){
@@ -466,7 +465,7 @@ html, body { height: 100%; margin: 0; }
       RISKY: "เสี่ยงที่จะเป็นลูกค้าหาย",
       LOST: "ลูกค้าหาย",
       WINBACK: "ลูกค้ากลับมา/ลูกค้าใหม่", // แก้ให้ตรงกับ mapStatusTH
-      DORMANT: "หายเกิน 60 วัน",        // แก้ให้ตรงกับ mapStatusTH
+      DORMANT: "หายเกิน 60 วัน",         // แก้ให้ตรงกับ mapStatusTH
     };
 
 
@@ -751,7 +750,7 @@ html, body { height: 100%; margin: 0; }
 
     loadAndRender();
     setInterval(loadAndRender,300000);
-  
+   
   // -----------------------------
   // Tabs
   // -----------------------------
@@ -1022,29 +1021,31 @@ html, body { height: 100%; margin: 0; }
       });
 
       // Customers Visualize + Truck summary (from Map Customers)
-     // ---------------------------------------------------------
-      // ส่วนที่แก้ไข: ให้กราฟด้านล่างใช้ข้อมูลทั้งหมด ไม่ต้องกรองตามวันที่
+      // ---------------------------------------------------------
+      // แก้ไข: กรองข้อมูลลูกค้า Map ตามตัวกรอง Dashboard
       // ---------------------------------------------------------
       
-      const customersAll = (typeof data!=='undefined' && data && Array.isArray(data.customers)) ? data.customers : [];
+      // 1. ดึงข้อมูลดิบ
+      let customersForDash = (typeof data!=='undefined' && data && Array.isArray(data.customers)) ? data.customers : [];
       
-      // ลบ หรือ Comment Out ส่วนนี้ออกครับ (โค้ดเดิมที่ทำการกรองวันที่)
-      /* let customers = customersAll;
-      if(dr.start || dr.end){
-        customers = customersAll.filter(c=>{
-          const d = parseDateFlexible(c.lastest_sales);
-          return inRange(d, dr.start, dr.end);
-        });
+      // 2. กรองตาม Branch (BU) ถ้ามีการเลือก
+      // ใน Map ใช้ field "branch", ใน Dashboard dropdown ค่ามาจาก "BU"
+      if (branchSel) {
+        customersForDash = customersForDash.filter(c => norm(c.branch) === branchSel);
       }
-      */
-
-      // เปลี่ยนไปเรียกใช้ customersAll (ข้อมูลดิบทั้งหมด) แทน customers (ตัวที่กรองแล้ว)
-      renderCustomerVisuals(customersAll);
-      renderTruckSummary(customersAll);
       
-      // ถ้าคุณใส่กราฟ Efficiency ที่ผมให้ไปล่าสุดแล้ว อย่าลืมบรรทัดนี้ด้วย
+      // 3. กรองตาม Owner ถ้ามีการเลือก (เพื่อให้สอดคล้องกับ CRM)
+      // ใน Map ใช้ field "person_incharge", ใน Dashboard dropdown ค่ามาจาก "owner"
+      if (ownerSel) {
+        customersForDash = customersForDash.filter(c => norm(c.person_incharge) === ownerSel);
+      }
+
+      // 4. ส่งข้อมูลที่กรองแล้วไปวาดกราฟ
+      renderCustomerVisuals(customersForDash);
+      renderTruckSummary(customersForDash);
+      
       if(typeof renderTruckEfficiencyChart === 'function') {
-        renderTruckEfficiencyChart(customersAll);
+        renderTruckEfficiencyChart(customersForDash);
       }
 
     } catch(err) {
@@ -1053,6 +1054,7 @@ html, body { height: 100%; margin: 0; }
   }
   btnDashRefresh.addEventListener('click', ()=>loadDash(true));
   crmOwnerFilter.addEventListener('change', ()=>loadDash(true));
+  crmBranchFilter.addEventListener('change', ()=>loadDash(true)); // เพิ่ม Event Change ให้ Branch
   dashStartDate?.addEventListener('change', ()=>loadDash(true));
   dashEndDate?.addEventListener('change', ()=>loadDash(true));
 
@@ -1235,5 +1237,9 @@ function renderTruckSummary(customers){
   }
 
 </script>
+
+
+
+  
 </body>
 </html>
