@@ -391,14 +391,20 @@ html, body { height: 100%; margin: 0; }
 };
 
   
-  function buildRowsHtml(obj, fields){
+// แก้ไข: เพิ่มพารามิเตอร์ isDark = true เป็นค่าเริ่มต้น
+  function buildRowsHtml(obj, fields, isDark = true){
+    // ถ้า isDark=true (Tooltip) ให้ใช้สีขาว/เทาอ่อน
+    // ถ้า isDark=false (Popup) ให้ใช้สีดำ/เทาเข้ม
+    const labelColor = isDark ? "text-slate-300" : "text-gray-500";
+    const valueColor = isDark ? "text-white" : "text-gray-900";
+
     return fields
       .filter(k => obj[k] !== undefined && obj[k] !== null && String(obj[k]).trim() !== "")
       .map(k => `<tr>
-        <td class="pr-2 text-slate-300 whitespace-nowrap">
+        <td class="pr-2 ${labelColor} whitespace-nowrap">
           ${FIELD_LABELS[k] || k}
         </td>
-        <td class="font-semibold text-white">
+        <td class="font-semibold ${valueColor}">
           ${obj[k]}
         </td>
       </tr>`)
@@ -410,7 +416,10 @@ html, body { height: 100%; margin: 0; }
       const fields = (type==='customer')
         ? ['customer_id','customer_name','lastest_sales','_statusTH','branch','truck_id','person_incharge','notes']
         : ['leads_name','status','province','district','nearest_truck_id','saler','branch','notes'];
-      const rows = buildRowsHtml(obj, fields);
+      
+      // ส่ง true ไปบอกว่าเป็น Dark Theme
+      const rows = buildRowsHtml(obj, fields, true); 
+
       const badge= type==='customer'
         ? `<span class="badge" style="background:${getTruckColor(obj.truck_id)||'#16a34a'};color:white">${obj._statusTH||''}</span>`
         : `<span class="badge" style="background:#2563eb;color:white">LEAD</span>`;
@@ -426,11 +435,14 @@ html, body { height: 100%; margin: 0; }
       const fields = (type==='customer')
         ? ['customer_id','customer_name','lastest_sales','_statusTH','branch','truck_id','person_incharge','notes']
         : ['leads_name','status','province','district','nearest_truck_id','saler','branch','notes'];
-      const rows = buildRowsHtml(obj, fields);
+      
+      // ส่ง false ไปบอกว่าเป็น Light Theme (สำหรับ Popup พื้นขาว)
+      const rows = buildRowsHtml(obj, fields, false); 
+
       const gmBtn = (isFinite(lat)&&isFinite(lng))
         ? `<a href="${gmapsUrl(lat,lng)}" target="_blank" rel="noopener" class="mt-2 inline-block text-xs font-semibold text-blue-600 underline">เปิดใน Google Maps</a>`:'';
       return `<div class="text-sm">
-        <div class="mb-1 font-bold">${obj.customer_name||obj.leads_name||obj.truck_id}</div>
+        <div class="mb-1 font-bold text-gray-900">${obj.customer_name||obj.leads_name||obj.truck_id}</div>
         <table class="text-xs">${rows}</table>
         ${gmBtn}
       </div>`;
