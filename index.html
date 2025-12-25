@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>KCP Map & Dashboard (Full System)</title>
+  <title>KCP Map For Sales Management (Active Customer & Leads)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -76,14 +76,15 @@
           <button id="btnExport" class="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white">ส่งออก</button>
         </div>
         <div class="rounded-xl border bg-white p-3">
-          <div class="text-xs text-gray-500 mb-1">สรุปบนแผนที่</div>
+          <div class="text-xs text-gray-500 mb-1">สรุป</div>
           <div id="summary" class="text-sm grid grid-cols-2 gap-x-3 gap-y-1">
             <div>Customers:</div><div id="sumCustomers" class="font-semibold">-</div>
             <div>Leads:</div><div id="sumLeads" class="font-semibold">-</div>
-            <div>Active:</div><div id="sumActive" class="font-semibold">-</div>
-            <div>เสี่ยง/หาย:</div><div id="sumRisky" class="font-semibold">-</div>
-            <div>Winback:</div><div id="sumWinback" class="font-semibold">-</div>
-            <div>Dormant:</div><div id="sumDormant" class="font-semibold">-</div>
+            <div>ลูกค้า Active:</div><div id="sumActive" class="font-semibold">-</div>
+            <div>เสี่ยงที่จะเป็นลูกค้าหาย:</div><div id="sumRisky" class="font-semibold">-</div>
+            <div>ลูกค้าหาย:</div><div id="sumLost" class="font-semibold">-</div> 
+            <div>Winback/New:</div><div id="sumWinback" class="font-semibold">-</div>
+            <div>Dormant>60:</div><div id="sumDormant" class="font-semibold">-</div>
           </div>
           <div id="errorBox" class="text-xs text-red-600 mt-2 hidden"></div>
         </div>
@@ -182,20 +183,24 @@
 
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             <div class="bg-white p-3 rounded-xl border shadow-sm">
-                <div class="text-xs text-gray-500">Tasks Total</div>
+                <div class="text-xs text-gray-500">Tasks (Dataset)</div>
                 <div class="text-2xl font-bold text-gray-800" id="kpiTaskTotal">-</div>
+                <div class="text-xs text-gray-400 mt-1">ต้องติดตาม: <span id="kpiTaskFollow">-</span></div>
             </div>
             <div class="bg-white p-3 rounded-xl border shadow-sm">
                 <div class="text-xs text-gray-500">% Task Completed</div>
                 <div class="text-2xl font-bold text-gray-800" id="kpiTaskRate">-</div>
+                <div class="text-xs text-gray-400 mt-1">เสร็จสิ้น: <span id="kpiTaskDone">-</span></div>
             </div>
             <div class="bg-white p-3 rounded-xl border shadow-sm">
-                <div class="text-xs text-gray-500">Leads (CRM)</div>
+                <div class="text-xs text-gray-500">Leads (Dataset)</div>
                 <div class="text-2xl font-bold text-gray-800" id="kpiLeadTotal">-</div>
+                <div class="text-xs text-gray-400 mt-1">ต้องติดตาม: <span id="kpiLeadFollow">-</span></div>
             </div>
             <div class="bg-white p-3 rounded-xl border shadow-sm">
                 <div class="text-xs text-gray-500">% Conversion</div>
                 <div class="text-2xl font-bold text-green-600" id="kpiLeadRate">-</div>
+                <div class="text-xs text-gray-400 mt-1">ปิดสำเร็จ: <span id="kpiLeadWon">-</span></div>
             </div>
         </div>
 
@@ -205,14 +210,14 @@
               <div class="h-60"><canvas id="chartTaskStatus"></canvas></div>
             </div>
             <div class="rounded-2xl border bg-white p-4 shadow-sm">
-              <div class="font-bold text-gray-900 mb-2 text-sm">Customers: สถานะลูกค้า</div>
-              <div class="h-60"><canvas id="chartCustomerStatus"></canvas></div>
+              <div class="font-bold text-gray-900 mb-2 text-sm">Leads: สถานะงาน</div>
+              <div class="h-60"><canvas id="chartLeadStatus"></canvas></div>
             </div>
         </div>
         
         <div class="rounded-2xl border bg-white p-4 shadow-sm mb-4">
              <div class="font-bold text-gray-900 mb-1">Truck Efficiency: คุณภาพพอร์ตลูกค้าตามรถ (100%)</div>
-             <div class="h-[400px]"><canvas id="chartTruckEfficiency"></canvas></div>
+             <div class="h-[500px]"><canvas id="chartTruckEfficiency"></canvas></div>
         </div>
 
         <div class="rounded-2xl border bg-white p-4 shadow-sm">
@@ -237,9 +242,7 @@
         </div>
       </div>
     </div>
-  </div>
-
-<script>
+  </div><script>
     // -------- CONFIG --------
     const SHEET_ID = "1KicClhZHtMr9bBmwLv31zvb0021SRUcGr2eRRagsO6c";
     const SHEETS = { customers: "Customers", leads: "leads", trucks: "Trucks", settings: "Settings" };
@@ -282,17 +285,14 @@
     };
     const gmapsUrl = (lat,lng) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lat+","+lng)}`;
 
-    // Date Parser
     function parseDateFlexible(v){
         const s = norm(v); if(!s) return null;
         if(v instanceof Date) return isNaN(v.getTime())?null:v;
-        // Check for d/m/yyyy (Thai format often used)
         let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
-        if(m) return new Date(Number(m[3]), Number(m[2])-1, Number(m[1]));
-        // yyyy-mm-dd
+        if(m) return new Date(Number(m[3]), Number(m[2])-1, Number(m[1])); // d/m/y
         m = s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})/);
-        if(m) return new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
-        return new Date(s); // Fallback
+        if(m) return new Date(Number(m[1]), Number(m[2])-1, Number(m[3])); // y-m-d
+        return new Date(s);
     }
 
     async function fetchSheet(sheetName, sheetId = SHEET_ID) {
@@ -307,7 +307,7 @@
       } catch(e) { console.error("Error fetching " + sheetName, e); return []; }
     }
 
-    // --- MAP SPECIFIC LOGIC (Restore Full) ---
+    // --- MAP LOGIC ---
     let truckColorMap = {};
     const getTruckColor = (id) => truckColorMap[normId(id)] || "";
 
@@ -322,7 +322,6 @@
       return '#EF4444';
     }
 
-    // Map Status TH
     function mapStatusTH(raw){
       if(raw==null) return "";
       const s = String(raw).trim();
@@ -367,7 +366,6 @@
       return `<div class="text-sm"><div class="mb-1 font-bold text-gray-900">${obj.customer_name||obj.leads_name||obj.truck_id}</div><table class="text-xs">${rows}</table>${gmBtn}</div>`;
     }
 
-    // --- MAP RENDER LOGIC (Full) ---
     let data = { customers:[], leads:[], trucks:[], settings:[] }; 
     const map = L.map('map');
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
@@ -403,6 +401,7 @@
       sumCustomers.textContent = customers.length; sumLeads.textContent = leads.length;
       sumActive.textContent = customers.filter(c => (c._statusTH||'')==='ลูกค้า Active').length;
       sumRisky.textContent = customers.filter(c => ['เสี่ยงที่จะเป็นลูกค้าหาย'].includes(c._statusTH||'')).length;
+      // Fixed sumLost undefined
       sumLost.textContent = customers.filter(c => ['ลูกค้าหาย'].includes(c._statusTH||'')).length;
       sumWinback.textContent = customers.filter(c => (c._statusTH||'')==='ลูกค้ากลับมา/ลูกค้าใหม่').length;
       sumDormant.textContent = customers.filter(c => (c._statusTH||'')==='หายเกิน 60 วัน').length;
@@ -482,7 +481,7 @@
         } catch(err){ showError(err.message||String(err)); }
     }
 
-    // --- DASHBOARD LOGIC (New & Fixed) ---
+    // --- DASHBOARD LOGIC ---
     const elements = {
         btnRefresh: document.getElementById('btnDashRefresh'),
         startDate: document.getElementById('dashStartDate'),
@@ -494,15 +493,18 @@
         leadSalesPeriod: document.getElementById('kpiLeadSalesPeriod'),
         taskTotal: document.getElementById('kpiTaskTotal'),
         taskRate: document.getElementById('kpiTaskRate'),
+        taskDone: document.getElementById('kpiTaskDone'),
+        taskFollow: document.getElementById('kpiTaskFollow'),
         leadTotal: document.getElementById('kpiLeadTotal'),
-        leadRate: document.getElementById('kpiLeadRate')
+        leadRate: document.getElementById('kpiLeadRate'),
+        leadWon: document.getElementById('kpiLeadWon'),
+        leadFollow: document.getElementById('kpiLeadFollow')
     };
     
     let charts = {}; 
 
     async function loadDash(skipInit = false){
         try {
-            // 1. Fetch Data Explicitly for Dashboard
             const [leadsRaw, datasetCRM, customersRaw, trucksRaw] = await Promise.all([
                 fetchSheet(SHEETS.leads), 
                 fetchSheet(CRM_SHEETS.dataset, CRM_SHEET_ID),
@@ -510,7 +512,6 @@
                 fetchSheet(SHEETS.trucks)
             ]);
             
-            // 2. Init Dashboard Filters
             if(!skipInit){
                 const owners = [...new Set(datasetCRM.map(r => norm(r['ผู้รับผิดชอบ'])).filter(Boolean))].sort();
                 elements.ownerFilter.innerHTML = '<option value="">ทั้งหมด</option>';
@@ -521,7 +522,6 @@
                 branches.forEach(b => elements.branchFilter.append(new Option(b,b)));
             }
 
-            // 3. Get Filter Values
             const ownerSel = elements.ownerFilter.value;
             const branchSel = elements.branchFilter.value;
             const startStr = elements.startDate.value;
@@ -530,10 +530,10 @@
             const endDate = endStr ? new Date(endStr) : null;
             if(endDate) endDate.setHours(23,59,59);
 
-            // === PART A: LEADS PERFORMANCE (FIXED) ===
+            // A: Leads (Fix On-Site Performance)
             renderLeadAnalytics(leadsRaw, startDate, endDate, ownerSel);
 
-            // === PART B: CRM DATASET ===
+            // B: CRM
             let crmRows = datasetCRM;
             if(ownerSel) crmRows = crmRows.filter(r => norm(r['ผู้รับผิดชอบ']) === ownerSel);
             if(branchSel) crmRows = crmRows.filter(r => norm(r['BU']) === branchSel);
@@ -546,7 +546,7 @@
             }
             renderCRMVisuals(crmRows);
 
-            // === PART C: CUSTOMERS & TRUCKS ===
+            // C: Customers
             let custRows = customersRaw;
             if(ownerSel) custRows = custRows.filter(c => norm(c.person_incharge) === ownerSel);
             if(branchSel) custRows = custRows.filter(c => norm(c.branch) === branchSel);
@@ -557,9 +557,8 @@
         } catch(e) { console.error(e); alert("Dashboard Error: " + e.message); }
     }
 
-    // --- LEADS ANALYTICS LOGIC ---
     function renderLeadAnalytics(leads, startDate, endDate, ownerSel) {
-        // 1. Clean & Map Names
+        // Clean Names
         const processed = leads.map(l => {
             const rawName = norm(l.saler);
             const d = parseDateFlexible(l.date);
@@ -567,21 +566,18 @@
             return { ...l, cleanName: name, cleanDate: d };
         }).filter(l => l.cleanDate != null);
 
-        // 2. Filter for Charts (Date Only - Keep Everyone)
-        const periodData = processed.filter(l => 
-            (!startDate || l.cleanDate >= startDate) && 
-            (!endDate || l.cleanDate <= endDate)
-        );
+        // Filter Period
+        const periodData = processed.filter(l => (!startDate || l.cleanDate >= startDate) && (!endDate || l.cleanDate <= endDate));
         
-        // 3. Visit Count Logic
+        // Count Visits
         const visitCounts = {};
         KNOWN_SALES.forEach(n => visitCounts[n] = 0);
+        // Include "อื่นๆ" if needed, but usually we stick to KNOWN
         periodData.forEach(l => { if(visitCounts[l.cleanName] !== undefined) visitCounts[l.cleanName]++; });
 
         const labels = KNOWN_SALES;
         const dataVisits = labels.map(n => visitCounts[n]);
 
-        // Render Visit Chart
         renderChart('chartLeadVisitCount', 'bar', labels, [{
             label: 'จำนวนเข้าพบ (ราย)',
             data: dataVisits,
@@ -589,7 +585,7 @@
             borderRadius: 4
         }]);
 
-        // Scorecard Logic (Avg vs Actual)
+        // Scorecard
         let scorecardVal = 0;
         let scorecardTxt = "เฉลี่ยต่อคน (Average)";
         if (ownerSel && KNOWN_SALES.includes(ownerSel)) {
@@ -602,9 +598,8 @@
         elements.visitCount.textContent = scorecardVal;
         elements.visitLabel.textContent = scorecardTxt;
 
-        // 4. Sales Logic (Cumulative vs Period)
-        const cumulativeData = processed.filter(l => (!endDate || l.cleanDate <= endDate)); // Up to EndDate
-        
+        // Sales Logic
+        const cumulativeData = processed.filter(l => (!endDate || l.cleanDate <= endDate));
         const countSales = (dataset) => {
             const counts = {}; KNOWN_SALES.forEach(n => counts[n] = 0);
             dataset.forEach(l => {
@@ -612,11 +607,9 @@
             });
             return labels.map(n => counts[n]);
         };
-
         const dataCumul = countSales(cumulativeData);
         const dataPeriod = countSales(periodData);
         
-        // Sales Scorecard
         let salesPeriodTotal = 0;
         if(ownerSel && KNOWN_SALES.includes(ownerSel)) {
              salesPeriodTotal = dataPeriod[labels.indexOf(ownerSel)];
@@ -625,7 +618,6 @@
         }
         elements.leadSalesPeriod.textContent = salesPeriodTotal;
 
-        // Render Sales Chart
         renderChart('chartLeadSalesComp', 'bar', labels, [
             { label: 'สะสม (Cumulative)', data: dataCumul, backgroundColor: '#cbd5e1', borderRadius: 4, categoryPercentage: 0.6, barPercentage: 0.7 },
             { label: 'ช่วงเวลา (Period)', data: dataPeriod, backgroundColor: '#10b981', borderRadius: 4, categoryPercentage: 0.6, barPercentage: 0.9 }
@@ -636,32 +628,39 @@
         const tasks = rows.filter(r => !norm(r['ประเภทลูกค้า']).includes('Lead'));
         const leads = rows.filter(r => norm(r['ประเภทลูกค้า']).includes('Lead'));
         
+        // Fix Count display
         elements.taskTotal.textContent = tasks.length;
         const tasksDone = tasks.filter(r => String(r['เข้าพบ/ติดต่อ สำเร็จแล้ว?']).toUpperCase() === 'TRUE').length;
+        elements.taskDone.textContent = tasksDone; // Show Count
+        elements.taskFollow.textContent = Math.max(0, tasks.length - tasksDone);
         elements.taskRate.textContent = ((tasksDone/tasks.length || 0)*100).toFixed(1) + '%';
         
         elements.leadTotal.textContent = leads.length;
         const leadsWon = leads.filter(r => String(r['เข้าพบ/ติดต่อ สำเร็จแล้ว?']).toUpperCase() === 'TRUE').length;
+        elements.leadWon.textContent = leadsWon; // Show Count
+        elements.leadFollow.textContent = Math.max(0, leads.length - leadsWon);
         elements.leadRate.textContent = ((leadsWon/leads.length || 0)*100).toFixed(1) + '%';
         
+        // Status Charts
         const groupBy = (arr, key) => {
             const m = {}; arr.forEach(x => { const k = norm(x[key])||'N/A'; m[k]=(m[k]||0)+1; });
             return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,5); 
         };
         const taskStatus = groupBy(tasks, 'สถานะงาน');
         renderChart('chartTaskStatus', 'doughnut', taskStatus.map(x=>x[0]), [{ data: taskStatus.map(x=>x[1]), backgroundColor: ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#64748b'] }]);
+        
+        const leadStatus = groupBy(leads, 'สถานะงาน');
+        renderChart('chartLeadStatus', 'doughnut', leadStatus.map(x=>x[0]), [{ data: leadStatus.map(x=>x[1]), backgroundColor: ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#64748b'] }]);
     }
 
     function renderCustomerVisuals(customers) {
         const counts = { "Active":0, "Risky":0, "Lost":0, "Winback":0, "Dormant":0 };
         customers.forEach(c => {
-            const s = mapStatusTH(c.status); // ใช้จาก status เดิม
-            const sTH = c._statusTH || s; // หรือใช้ที่ map มาแล้ว
-            
-            if(sTH.includes('Active')) counts.Active++;
-            else if(sTH.includes('เสี่ยง')) counts.Risky++;
-            else if(sTH.includes('Lost') || sTH.includes('หาย')) counts.Lost++;
-            else if(sTH.includes('Winback') || sTH.includes('ใหม่')) counts.Winback++;
+            const s = mapStatusTH(c.status); 
+            if(s.includes('Active')) counts.Active++;
+            else if(s.includes('เสี่ยง')) counts.Risky++;
+            else if(s.includes('Lost')) counts.Lost++;
+            else if(s.includes('Winback')) counts.Winback++;
             else counts.Dormant++;
         });
         renderChart('chartCustomerStatus', 'doughnut', Object.keys(counts), [{ data: Object.values(counts), backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#3b82f6', '#64748b'] }]);
@@ -687,85 +686,82 @@
             </tr>`).join('');
     }
 
+    // Fix Truck Efficiency -> 100% Stacked Bar
     function renderTruckEfficiency(customers) {
         const tMap = {};
-        customers.forEach(c => { const id=norm(c.truck_id); if(!id) return; if(!tMap[id]) tMap[id]={id, active:0, total:0}; tMap[id].total++; if(mapStatusTH(c.status).includes('Active')) tMap[id].active++; });
-        const data = Object.values(tMap).map(t => ({ id: t.id, pct: t.total > 0 ? (t.active/t.total)*100 : 0 })).sort((a,b) => b.pct - a.pct).slice(0, 20);
-        renderChart('chartTruckEfficiency', 'bar', data.map(d=>d.id), [{ label: '% Active', data: data.map(d=>d.pct), backgroundColor: '#10b981' }]);
+        customers.forEach(c => { 
+            const id=norm(c.truck_id); if(!id) return; 
+            if(!tMap[id]) tMap[id]={ id, active:0, risky:0, lost:0, winback:0, dormant:0, total:0 }; 
+            tMap[id].total++; 
+            const s = mapStatusTH(c.status);
+            if(s.includes('Active')) tMap[id].active++; 
+            else if(s.includes('เสี่ยง')) tMap[id].risky++; 
+            else if(s.includes('Lost')) tMap[id].lost++; 
+            else if(s.includes('Winback')) tMap[id].winback++; 
+            else tMap[id].dormant++;
+        });
+        
+        let data = Object.values(tMap).filter(t=>t.total>0);
+        // Sort by % Active
+        data.sort((a,b) => (b.active/b.total) - (a.active/a.total));
+        data = data.slice(0, 15); // Top 15
+
+        const labels = data.map(d=>d.id);
+        const getPct = (d, key) => (d[key]/d.total*100);
+
+        renderChart('chartTruckEfficiency', 'bar', labels, [
+            { label: 'Active', data: data.map(d=>getPct(d,'active')), backgroundColor: '#10b981' },
+            { label: 'Winback', data: data.map(d=>getPct(d,'winback')), backgroundColor: '#3b82f6' },
+            { label: 'Risky', data: data.map(d=>getPct(d,'risky')), backgroundColor: '#f59e0b' },
+            { label: 'Lost', data: data.map(d=>getPct(d,'lost')), backgroundColor: '#ef4444' },
+            { label: 'Dormant', data: data.map(d=>getPct(d,'dormant')), backgroundColor: '#6b7280' },
+        ], { stacked: true });
     }
 
-    function renderChart(id, type, labels, datasets) {
+    function renderChart(id, type, labels, datasets, extraOpts={}) {
         if(charts[id]) charts[id].destroy();
         const ctx = document.getElementById(id).getContext('2d');
-        const opts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: datasets.length > 1 } }, scales: type === 'bar' ? { y: { beginAtZero: true } } : {} };
+        const opts = { 
+            responsive: true, maintainAspectRatio: false, 
+            plugins: { legend: { display: datasets.length > 1, position:'top' } }, 
+            scales: type === 'bar' ? { y: { beginAtZero: true, stacked: extraOpts.stacked||false }, x: { stacked: extraOpts.stacked||false } } : {} 
+        };
         if(id === 'chartLeadSalesComp') opts.scales = { x: { stacked: false }, y: { beginAtZero: true } };
+        if(extraOpts.stacked) opts.scales.x.max = 100; // Force 100% width
+
         charts[id] = new Chart(ctx, { type, data: { labels, datasets }, options: opts });
     }
 
-    // --- Export Excel (Original Logic) ---
-   // แทนที่ฟังก์ชัน exportFilteredToExcel เดิม ด้วยโค้ดนี้ครับ
+    // --- Export Excel (Original) ---
     function exportFilteredToExcel(){
       try{
         const filteredCustomers = data.customers.filter(passFilters);
         const filteredLeads = (document.getElementById('toggleLeads').checked ? data.leads : []).filter(passFilters);
-
-        const customerColumns = [
-          ['customer_id','Customer ID'], ['customer_name','ชื่อลูกค้า'], ['_statusTH','สถานะลูกค้า (TH)'],
-          ['branch','สาขา'], ['truck_id','รหัสรถมิเตอร์'], ['person_incharge','ผู้รับผิดชอบ'],
-          ['lastest_sales','ยอดขายล่าสุด'], ['notes','หมายเหตุ'], ['latitude','Latitude'], ['longitude','Longitude']
-        ];
-        const leadColumns = [
-          ['leads_name','ชื่อลีด'], ['status','สถานะลีด'], ['branch','สาขา'], ['saler','พนักงานขายผู้ดูแล'],
-          ['nearest_truck_id','รถที่ใกล้สุด'], ['province','จังหวัด'], ['district','อำเภอ/เขต'],
-          ['notes','หมายเหตุ'], ['latitude','Latitude'], ['longitude','Longitude']
-        ];
-
-        const mapRows = (rows, columns) => {
-          return rows.map(r=>{
+        const mapRows = (rows) => rows.map(r=>{
             const obj={};
-            columns.forEach(([key,label])=>{
-              let v = r[key];
-              if((key==='latitude'||key==='longitude') && v!==undefined && v!==null && v!==''){
-                const num = parseFloat(v); v = isFinite(num) ? +num.toFixed(6) : '';
-              }
-              obj[label] = (v === undefined || v === null) ? '' : v;
+            Object.keys(r).forEach(k => {
+                if(k==='latitude'||k==='longitude') obj[k] = isFinite(parseFloat(r[k])) ? +parseFloat(r[k]).toFixed(6) : '';
+                else obj[k] = r[k];
             });
             return obj;
-          });
-        };
-
+        });
         const wb = XLSX.utils.book_new();
-        const wsCustomers = XLSX.utils.json_to_sheet(mapRows(filteredCustomers, customerColumns), { origin: 'A1' });
-        const wsLeads = XLSX.utils.json_to_sheet(mapRows(filteredLeads, leadColumns), { origin: 'A1' });
-
-        const fitCols = (columns) => columns.map(([,label])=>({ wch: Math.max(12, label.length + 4) }));
-        wsCustomers['!cols'] = fitCols(customerColumns);
-        wsLeads['!cols'] = fitCols(leadColumns);
-
-        XLSX.utils.book_append_sheet(wb, wsCustomers, 'Customers (filtered)');
-        XLSX.utils.book_append_sheet(wb, wsLeads, 'Leads (filtered)');
-
-        const dateStr = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
-        XLSX.writeFile(wb, `KCP-Export_${dateStr}.xlsx`);
-      }catch(err){
-        alert('Export Error: ' + err.message);
-      }
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mapRows(filteredCustomers)), 'Customers');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mapRows(filteredLeads)), 'Leads');
+        XLSX.writeFile(wb, `KCP-Export_${new Date().toISOString().slice(0,10)}.xlsx`);
+      }catch(err){ alert('Export Error: ' + err.message); }
     }
+
     // --- INIT ---
-    // UI Event Listeners
     [branchFilter,managerFilter,truckFilter,statusFilter,toggleLeads,toggleNearest].forEach(el=> el.addEventListener('change',render));
     document.querySelectorAll('.radiusChoice').forEach(el=>{ el.addEventListener('change', render); });
     btnRefresh.onclick = ()=>loadAndRenderMap();
     btnReset.onclick = ()=>{ [branchFilter,managerFilter,truckFilter,statusFilter].forEach(el=>el.value=""); document.querySelectorAll('.radiusChoice').forEach(ch=>{ ch.checked=false; }); render(); };
     btnExport.onclick = exportFilteredToExcel;
 
-    // Load Map Data First
     loadAndRenderMap();
-    
-    // Dash Refresh Button
     document.getElementById('btnDashRefresh').onclick = () => loadDash(false);
     
-    // Auto load dash on tab switch
     document.getElementById('tabDash').addEventListener('click', () => {
         document.getElementById('viewDash').classList.remove('hidden');
         document.getElementById('viewMap').classList.add('hidden');
