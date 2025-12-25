@@ -126,6 +126,9 @@ html, body { height: 100%; margin: 0; }
           <div class="text-sm text-gray-500">สรุปการทำงานของทีมขายจาก 2 แหล่งข้อมูล (Map + CRM Dataset)</div>
         </div>
         <div class="flex items-end gap-2">
+          <div class="w-40"> <label class="text-xs text-gray-600">สาขา (BU)</label>
+            <select id="crmBranchFilter" class="w-full mt-1 rounded-xl border-gray-300 text-sm p-2 shadow-sm"></select>
+          </div>
           <div class="w-64">
             <label class="text-xs text-gray-600">ผู้รับผิดชอบ (Dataset)</label>
             <select id="crmOwnerFilter" class="w-full mt-1 rounded-xl border-gray-300 text-sm"></select>
@@ -780,6 +783,7 @@ html, body { height: 100%; margin: 0; }
   // Dashboard (CRM Dataset)
   // -----------------------------
   const crmOwnerFilter = document.getElementById('crmOwnerFilter');
+  const crmBranchFilter = document.getElementById('crmBranchFilter');
   const dashStartDate = document.getElementById('dashStartDate');
   const dashEndDate = document.getElementById('dashEndDate');
   const btnDashRefresh = document.getElementById('btnDashRefresh');
@@ -919,10 +923,21 @@ html, body { height: 100%; margin: 0; }
         crmOwnerFilter.innerHTML = "";
         crmOwnerFilter.append(new Option("ทั้งหมด",""));
         owners.forEach(o=>crmOwnerFilter.append(new Option(o,o)));
+        // ดึงค่า BU ที่ไม่ซ้ำมาเรียงกัน
+        const branches = uniqueSorted(dataset.map(r=>norm(r[CRM_COLS.bu])).filter(Boolean));
+        
+        crmBranchFilter.innerHTML = "";
+        crmBranchFilter.append(new Option("ทุกสาขา",""));
+        branches.forEach(b => crmBranchFilter.append(new Option(b, b)));
       }
 
       const ownerSel = crmOwnerFilter.value;
       let rows = ownerSel ? dataset.filter(r=>norm(r[CRM_COLS.owner])===ownerSel) : dataset;
+      // --- เพิ่มส่วนนี้: กรอง Branch ต่อจาก Owner ---
+      const branchSel = crmBranchFilter.value;
+      if(branchSel){
+        rows = rows.filter(r => norm(r[CRM_COLS.bu]) === branchSel);
+      }
       // date range filter (Dataset uses 'วันที่ต้องทำ')
       const dr = getDashDateRange();
       if(dr.start || dr.end){
