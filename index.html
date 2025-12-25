@@ -289,12 +289,28 @@
       </div>
   </div>
 
+
+
+
 <script>
     // -------- CONFIG --------
     const SHEET_ID = "1KicClhZHtMr9bBmwLv31zvb0021SRUcGr2eRRagsO6c";
     const SHEETS = { customers: "Customers", leads: "leads", trucks: "Trucks", settings: "Settings" };
     const CRM_SHEET_ID = "1Nxbvm7R6AqwTpUtI8AHEVY2HZv0gAnYcrC_lBDTe5os";
     const CRM_SHEETS = { dataset: "Dataset" };
+
+    // ✅✅ 1. รายชื่อผู้รับผิดชอบหลัก (Whitelist) 
+    // รายชื่อที่มีในนี้จะแสดงชื่อปกติ ส่วนชื่ออื่นนอกเหนือจากนี้จะถูกรวมเป็น "อื่นๆ"
+    const ALLOWED_SALES_NAMES = [
+      "ชลิตา (อีฟ)",
+      "ชาญชัย (ต้อม)",
+      "ณัฏฐภรณ์ (อ้อม)",
+      "ธีระพันธ์ (จุ่น)",
+      "นฤเบศ (โก้)",
+      "บุญย์มนัส (คุณฝน)",
+      "ปิยธิดา (อุ้ย)",
+      "สุรศักดิ์ (ช้าง)"
+    ];
 
     const BRANCH_RADIUS_CENTERS = {
       ST:  { lat: 16.381029272179042, lng: 103.34881852164082 },
@@ -346,7 +362,6 @@
     // Global Charts variables
     let chartTaskStatus, chartLeadStatus, chartTaskContact, chartTaskChannel, chartCustomerStatus, chartTruckRisk;
     let chartTruckEfficiency;
-    // New charts
     let chartActualVisits, chartActualSales; 
 
     const uniqueSorted = (arr) => [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'));
@@ -458,6 +473,19 @@
       WINBACK: "ลูกค้ากลับมา/ลูกค้าใหม่", DORMANT: "หายเกิน 60 วัน",
     };
 
+    function norm(v){ return (v==null?'':String(v)).trim(); }
+
+    // ✅✅ 2. ฟังก์ชันจัดกลุ่มชื่อ (ถ้าไม่อยู่ใน List ให้เป็น "อื่นๆ")
+    function getOwnerGroup(rawName) {
+        const n = norm(rawName);
+        if(!n) return ""; // ว่าง
+        // เช็คว่าชื่อนี้อยู่ในรายการที่อนุญาตหรือไม่
+        if (ALLOWED_SALES_NAMES.includes(n)) {
+            return n;
+        }
+        return "อื่นๆ";
+    }
+
     function passFilters(item){
       const b = branchFilter.value;
       const m = managerFilter.value;
@@ -466,7 +494,14 @@
       const selectedBranches = getSelectedRadiusBranches();
 
       if(b && (item.branch||'')!==b) return false;
-      if(m && (item.person_incharge||'')!==m) return false;
+      
+      // ✅✅ 3. แก้ไข Filter Map ให้ใช้ Group Name
+      if(m) {
+         // แปลงชื่อใน Data เป็น Group ก่อนเปรียบเทียบ
+         const groupName = getOwnerGroup(item.person_incharge);
+         if(groupName !== m) return false;
+      }
+
       if(t && (item.truck_id||item.nearest_truck_id||'')!==t) return false;
       if (s) {
         const wantTH = STATUS_CODE_TO_TH[s] || s;
@@ -603,7 +638,10 @@
           opts.forEach(o=>el.append(new Option(o,o)));
         };
         setOpts(branchFilter,  uniqueSorted([ ...customersData.map(c=>c.branch), ...leads.map(l=>l.branch) ]));
-        setOpts(managerFilter, uniqueSorted([ ...customersData.map(c=>c.person_incharge), ...trucks.map(t=>t.person_incharge) ]));
+        
+        // ✅✅ 4. Map Filter ใช้ List ที่เรากำหนดเอง + "อื่นๆ"
+        setOpts(managerFilter, [...ALLOWED_SALES_NAMES, "อื่นๆ"]); 
+        
         setOpts(truckFilter,   uniqueSorted(trucks.map(t=>t.truck_id)));
         render();
       }catch(err){ showError(err.message||String(err)); }
@@ -728,7 +766,6 @@
     bu: "BU", pipeline: "Pipeline", saleChannel: "ช่องทางการขาย", contactChannel: "ช่องทางการติดต่อ",
   };
 
-  function norm(v){ return (v==null?'':String(v)).trim(); }
   function isLeadRow(r){ return norm(r[CRM_COLS.type]).toLowerCase().includes('lead') || norm(r[CRM_COLS.type]).includes('ลูกค้ามุ่งหวัง'); }
   function isDoneRow(r){
     const d = String(r[CRM_COLS.done]).toUpperCase().trim();
@@ -791,31 +828,30 @@
       }
     });
   }
+  
+  // ✅✅ 5. แก้ GroupCount ให้ใช้ getOwnerGroup ด้วย ถ้า Key คือ Owner
+  // แต่ฟังก์ชันนี้ใช้ Generic งั้นต้องแก้ตอนเรียกใช้
   function groupCount(rows, keyFn){
     const m = new Map();
-    rows.forEach(r=>{ const k = norm(keyFn(r)); if(!k) return; m.set(k, (m.get(k)||0)+1); });
+    rows.forEach(r=>{ 
+        const k = norm(keyFn(r)); 
+        if(!k) return; 
+        m.set(k, (m.get(k)||0)+1); 
+    });
     return [...m.entries()].sort((a,b)=>b[1]-a[1]);
   }
 
   async function loadDash(skipInit){
     try{
       const dataset = await fetchSheet(CRM_SHEETS.dataset, CRM_SHEET_ID);
-
-      // 1. ดึง Leads มาเตรียมไว้ (จาก Global Variable 'data')
       const leadsAll = (typeof data !== 'undefined' && data.leads) ? data.leads : [];
 
       if(!skipInit){
-        // รายชื่อจาก CRM Dataset
-        const ownersCRM = uniqueSorted(dataset.map(r=>norm(r[CRM_COLS.owner])).filter(Boolean));
-        // รายชื่อจาก Leads (saller)
-        const ownersLeads = uniqueSorted(leadsAll.map(r=>norm(r.saller)).filter(Boolean));
-        
-        // รวมรายชื่อและลบค่าซ้ำ
-        const combinedOwners = uniqueSorted([...new Set([...ownersCRM, ...ownersLeads])]);
-
+        // ✅✅ 6. Dashboard Dropdown: ใช้ Whitelist + Others
         crmOwnerFilter.innerHTML = "";
         crmOwnerFilter.append(new Option("ทั้งหมด",""));
-        combinedOwners.forEach(o=>crmOwnerFilter.append(new Option(o,o)));
+        ALLOWED_SALES_NAMES.forEach(o=>crmOwnerFilter.append(new Option(o,o)));
+        crmOwnerFilter.append(new Option("อื่นๆ","อื่นๆ"));
 
         const branches = uniqueSorted(dataset.map(r=>norm(r[CRM_COLS.bu])).filter(Boolean));
         crmBranchFilter.innerHTML = "";
@@ -824,7 +860,12 @@
       }
 
       const ownerSel = crmOwnerFilter.value;
-      let rows = ownerSel ? dataset.filter(r=>norm(r[CRM_COLS.owner])===ownerSel) : dataset;
+      // ✅✅ 7. Dashboard Filtering: ใช้ Group Logic
+      let rows = dataset;
+      if(ownerSel) {
+          rows = rows.filter(r => getOwnerGroup(r[CRM_COLS.owner]) === ownerSel);
+      }
+      
       const branchSel = crmBranchFilter.value;
       if(branchSel){ rows = rows.filter(r => norm(r[CRM_COLS.bu]) === branchSel); }
       const dr = getDashDateRange();
@@ -891,14 +932,17 @@
       // Customers Visualize
       let customersForDash = (typeof data!=='undefined' && data && Array.isArray(data.customers)) ? data.customers : [];
       if (branchSel) { customersForDash = customersForDash.filter(c => norm(c.branch) === branchSel); }
-      if (ownerSel) { customersForDash = customersForDash.filter(c => norm(c.person_incharge) === ownerSel); }
+      // ✅✅ 8. Dashboard Customer Filter: Group Logic
+      if (ownerSel) { 
+        customersForDash = customersForDash.filter(c => getOwnerGroup(c.person_incharge) === ownerSel); 
+      }
 
       renderCustomerVisuals(customersForDash);
       renderTruckSummary(customersForDash);
       if(typeof renderTruckEfficiencyChart === 'function') {
         renderTruckEfficiencyChart(customersForDash);
       }
-      // NEW FUNCTION CALL
+      
       renderActualFieldPerformance(leadsAll);
 
     } catch(err) {
@@ -937,16 +981,30 @@
   function renderTruckSummary(customers){
     const byTruck = {};
     const trucksAll = (typeof data!=='undefined' && data && Array.isArray(data.trucks)) ? data.trucks : [];
+    
+    // Init trucks
     trucksAll.forEach(t=>{
       const truck = norm(t.truck_id); if(!truck) return;
-      if(!byTruck[truck]){ byTruck[truck] = { truck, total:0, active:0, risky:0, lost:0, winback:0, dormant:0, owners:{} }; const owner = norm(t.person_incharge); if(owner) byTruck[truck].owners[owner] = (byTruck[truck].owners[owner]||0)+1; }
+      if(!byTruck[truck]){ 
+          byTruck[truck] = { truck, total:0, active:0, risky:0, lost:0, winback:0, dormant:0, owners:{} }; 
+          // Owner ตั้งต้นจาก Truck Sheet
+          const owner = norm(t.person_incharge); 
+          const ownerGroup = getOwnerGroup(owner); // ✅✅ Group
+          if(ownerGroup) byTruck[truck].owners[ownerGroup] = (byTruck[truck].owners[ownerGroup]||0)+1; 
+      }
     });
+
     customers.forEach(c=>{
       const truck = norm(c.truck_id); if(!truck) return;
       if(!byTruck[truck]){ byTruck[truck] = { truck, total:0, active:0, risky:0, lost:0, winback:0, dormant:0, owners:{} }; }
       const g = byTruck[truck];
       g.total++;
-      const owner = norm(c.person_incharge); if(owner) g.owners[owner] = (g.owners[owner]||0)+1;
+      
+      // ✅✅ Group Owner in Summary
+      const owner = norm(c.person_incharge); 
+      const ownerGroup = getOwnerGroup(owner);
+      if(ownerGroup) g.owners[ownerGroup] = (g.owners[ownerGroup]||0)+1;
+
       const st = norm(c._statusTH);
       if(st==="ลูกค้า Active") g.active++; else if(st==="เสี่ยงที่จะเป็นลูกค้าหาย") g.risky++; else if(st==="ลูกค้าหาย") g.lost++; else if(st==="ลูกค้ากลับมา/ลูกค้าใหม่") g.winback++; else if(st==="หายเกิน 60 วัน") g.dormant++;
     });
@@ -1016,19 +1074,21 @@
     });
   }
 
-  // ------- NEW FUNCTION (แยกออกมาให้ถูกต้อง) -------
   function renderActualFieldPerformance(allLeads) {
     const ownerSel = crmOwnerFilter.value;
     const { start, end } = getDashDateRange();
     const getLeadDate = (r) => parseDateFlexible(r.date); 
     const isClosed = (r) => { const s = norm(r.status).toLowerCase(); return s === 'ปิดการขาย' || s === 'closed'; };
 
-    // 1. Filter Leads by Time
     const leadsInTime = allLeads.filter(r => { const d = getLeadDate(r); return inRange(d, start, end); });
 
-    // 2. Chart 1: Visits (Compare Everyone)
+    // ✅✅ 9. Actual Visits Chart: ใช้ Group Name
     const visitCounts = {};
-    leadsInTime.forEach(r => { let name = norm(r.saller) || "ไม่ระบุ"; visitCounts[name] = (visitCounts[name] || 0) + 1; });
+    leadsInTime.forEach(r => { 
+        let rawName = norm(r.saller) || "ไม่ระบุ"; 
+        let groupName = getOwnerGroup(rawName); // Group
+        visitCounts[groupName] = (visitCounts[groupName] || 0) + 1; 
+    });
     const sortedVisits = Object.entries(visitCounts).sort((a,b) => b[1] - a[1]);
     
     destroyChart(chartActualVisits);
@@ -1038,9 +1098,9 @@
         options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', scales: { x: { beginAtZero: true } }, plugins: { legend: { display: false } } }
     });
 
-    // 3. Score Card (Apply Owner Filter)
+    // Score Card (Filter Logic)
     let filteredLeadsRange = leadsInTime;
-    if(ownerSel) filteredLeadsRange = filteredLeadsRange.filter(r => norm(r.saller) === ownerSel);
+    if(ownerSel) filteredLeadsRange = filteredLeadsRange.filter(r => getOwnerGroup(r.saller) === ownerSel);
     
     const countVisit = filteredLeadsRange.length;
     const countClosedRange = filteredLeadsRange.filter(isClosed).length;
@@ -1050,9 +1110,9 @@
     document.getElementById('actSaleRange').textContent = countClosedRange.toLocaleString();
     document.getElementById('actConvRange').textContent = convRate;
 
-    // 4. Chart 2: Sales (Accumulated vs Range)
+    // Chart Sales
     let filteredLeadsAcc = allLeads;
-    if(ownerSel) filteredLeadsAcc = filteredLeadsAcc.filter(r => norm(r.saller) === ownerSel);
+    if(ownerSel) filteredLeadsAcc = filteredLeadsAcc.filter(r => getOwnerGroup(r.saller) === ownerSel);
     const countClosedAcc = filteredLeadsAcc.filter(isClosed).length;
     document.getElementById('actSaleAcc').textContent = countClosedAcc.toLocaleString();
 
@@ -1067,5 +1127,11 @@
   }
 
 </script>
+
+
+
+
+
+  
 </body>
 </html>
