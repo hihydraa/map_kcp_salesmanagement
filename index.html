@@ -1092,7 +1092,8 @@ html, body { height: 100%; margin: 0; }
 
 function renderTruckSummary(customers){
     const byTruck = {};
-    // init all trucks from Trucks sheet so table shows every truck
+    
+    // 1. Init ข้อมูลรถทุกคันจาก Sheet Trucks (เพื่อดึงชื่อรถและผู้รับผิดชอบตั้งต้น)
     const trucksAll = (typeof data!=='undefined' && data && Array.isArray(data.trucks)) ? data.trucks : [];
     trucksAll.forEach(t=>{
       const truck = norm(t.truck_id);
@@ -1103,14 +1104,19 @@ function renderTruckSummary(customers){
         if(owner) byTruck[truck].owners[owner] = (byTruck[truck].owners[owner]||0)+1;
       }
     });
+
+    // 2. นับจำนวนลูกค้าที่ผ่าน Filter มาแล้ว
     customers.forEach(c=>{
       const truck = norm(c.truck_id);
       if(!truck) return;
+      
+      // ถ้าไม่มีข้อมูลรถในระบบ ให้สร้างใหม่
       if(!byTruck[truck]){
         byTruck[truck] = { truck, total:0, active:0, risky:0, lost:0, winback:0, dormant:0, owners:{} };
       }
+      
       const g = byTruck[truck];
-      g.total++;
+      g.total++; // บวกจำนวนลูกค้า
 
       const owner = norm(c.person_incharge);
       if(owner) g.owners[owner] = (g.owners[owner]||0)+1;
@@ -1122,6 +1128,33 @@ function renderTruckSummary(customers){
       else if(st==="ลูกค้ากลับมา/ลูกค้าใหม่") g.winback++;
       else if(st==="หายเกิน 60 วัน") g.dormant++;
     });
+
+    // 3. กรองและแสดงผล (เพิ่ม .filter ตรงนี้เพื่อซ่อนแถวที่เป็น 0)
+    const rows = Object.values(byTruck)
+        .filter(r => r.total > 0) // <--- เพิ่มบรรทัดนี้: ถ้าลูกค้าเป็น 0 ไม่ต้องแสดง
+        .sort((a,b)=>a.truck.localeCompare(b.truck,'en'));
+
+    truckTableBody.innerHTML = rows.map(r=>{
+      const topOwners = Object.entries(r.owners).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,c])=>`${n}`).join(", ");
+      return `
+        <tr class="border-t hover:bg-gray-50 transition-colors">
+          <td class="p-2 font-semibold text-gray-900">${r.truck}</td>
+          <td class="p-2 text-gray-600">${topOwners || "-"}</td>
+          <td class="p-2 text-right font-bold text-gray-900">${r.total}</td>
+          <td class="p-2 text-right text-emerald-600 font-medium">${r.active}</td>
+          <td class="p-2 text-right text-amber-500">${r.risky}</td>
+          <td class="p-2 text-right text-red-500">${r.lost}</td>
+          <td class="p-2 text-right text-blue-500">${r.winback}</td>
+          <td class="p-2 text-right text-gray-400">${r.dormant}</td>
+        </tr>
+      `;
+    }).join("");
+    
+    // กรณีไม่มีข้อมูลเลย ให้แสดงข้อความแจ้งเตือน
+    if(rows.length === 0) {
+       truckTableBody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-gray-400">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</td></tr>`;
+    }
+  }
 
     const rows = Object.values(byTruck).sort((a,b)=>a.truck.localeCompare(b.truck,'en'));
     truckTableBody.innerHTML = rows.map(r=>{
