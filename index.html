@@ -52,111 +52,94 @@
   </div>
 
   <div id="viewMap">
-   <div id="panel" class="fixed z-[999] top-3 left-3 w-[360px] max-w-[92vw] bg-white/95 backdrop-blur border border-gray-200 rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar">
-  <div class="p-4 border-b">
-    <h1 class="text-xl font-bold text-gray-900">KCP Map For Sales Management</h1>
-    <p class="text-xs text-gray-500">เลือกได้หลายตัวเลือก (Multi-Select)</p>
-  </div>
-  <div class="p-4 flex flex-col gap-3">
-    <div class="grid grid-cols-2 gap-2">
-      <div class="relative">
-        <label class="text-xs text-gray-600 mb-1 block">สาขา (Branch)</label>
-        <div id="branchFilterWrap" class="relative"></div>
+    <div id="panel" class="fixed z-[999] top-3 left-3 w-[360px] max-w-[92vw] bg-white/95 backdrop-blur border border-gray-200 rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="p-4 border-b">
+        <h1 class="text-xl font-bold text-gray-900">KCP Map For Sales Management</h1>
+        <p class="text-xs text-gray-500">เลือกได้หลายตัวเลือก (Multi-Select)</p>
       </div>
-      
-      <div class="relative">
-        <label class="text-xs text-gray-600 mb-1 block">ผู้รับผิดชอบ</label>
-        <div id="managerFilterWrap" class="relative"></div>
-      </div>
+      <div class="p-4 flex flex-col gap-3">
+        <div class="grid grid-cols-2 gap-2">
+          <div class="relative">
+            <label class="text-xs text-gray-600 mb-1 block">สาขา (Branch)</label>
+            <div id="branchFilterWrap" class="relative"></div>
+          </div>
+          
+          <div class="relative">
+            <label class="text-xs text-gray-600 mb-1 block">ผู้รับผิดชอบ</label>
+            <div id="managerFilterWrap" class="relative"></div>
+          </div>
 
-      <div class="relative">
-        <label class="text-xs text-gray-600 mb-1 block">รถมิเตอร์ (Truck)</label>
-        <div id="truckFilterWrap" class="relative"></div>
-      </div>
+          <div class="relative">
+            <label class="text-xs text-gray-600 mb-1 block">รถมิเตอร์ (Truck)</label>
+            <div id="truckFilterWrap" class="relative"></div>
+          </div>
 
-      <div class="relative">
-        <label class="text-xs text-gray-600 mb-1 block">สถานะลูกค้า</label>
-        <div id="statusFilterWrap" class="relative"></div>
-      </div>
+          <div class="relative">
+            <label class="text-xs text-gray-600 mb-1 block">สถานะลูกค้า</label>
+            <div id="statusFilterWrap" class="relative"></div>
+          </div>
 
-      <div class="col-span-2 text-xs text-gray-600 mt-2">
-        รัศมี 100 กม. รอบสาขา (เลือกได้หลายสาขา)
-        <div class="mt-1 flex flex-wrap gap-2">
-          <label class="inline-flex items-center gap-1 cursor-pointer">
-            <input type="checkbox" class="radiusChoice rounded accent-gray-900" value="ST" />
-            <span class="text-xs">ST</span>
+          <div class="col-span-2 text-xs text-gray-600 mt-2">
+            รัศมี 100 กม. รอบสาขา (เลือกได้หลายสาขา)
+            <div class="mt-1 flex flex-wrap gap-2">
+              <label class="inline-flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" class="radiusChoice rounded accent-gray-900" value="ST" />
+                <span class="text-xs">ST</span>
+              </label>
+              <label class="inline-flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" class="radiusChoice rounded accent-gray-900" value="KN" />
+                <span class="text-xs">KN</span>
+              </label>
+              <label class="inline-flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" class="radiusChoice rounded accent-gray-900" value="MUK" />
+                <span class="text-xs">MUK</span>
+              </label>
+              <label class="inline-flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" class="radiusChoice rounded accent-gray-900" value="WNN" />
+                <span class="text-xs">WNN</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3 mt-1">
+          <label class="inline-flex items-center gap-2 text-sm cursor-pointer">
+            <input id="toggleLeads" type="checkbox" class="rounded accent-gray-900" checked /> แสดง Leads
           </label>
-          <label class="inline-flex items-center gap-1 cursor-pointer">
-            <input type="checkbox" class="radiusChoice rounded accent-gray-900" value="KN" />
-            <span class="text-xs">KN</span>
-          </label>
-          <label class="inline-flex items-center gap-1 cursor-pointer">
-            <input type="checkbox" class="radiusChoice rounded accent-gray-900" value="MUK" />
-            <span class="text-xs">MUK</span>
-          </label>
-          <label class="inline-flex items-center gap-1 cursor-pointer">
-            <input type="checkbox" class="radiusChoice rounded accent-gray-900" value="WNN" />
-            <span class="text-xs">WNN</span>
+          <label class="inline-flex items-center gap-2 text-sm cursor-pointer">
+            <input id="toggleNearest" type="checkbox" class="rounded accent-gray-900" checked /> คำนวณรถใกล้สุด
           </label>
         </div>
-      </div>
-    </div>
 
-    <div class="flex items-center gap-3 mt-1">
-      <label class="inline-flex items-center gap-2 text-sm cursor-pointer">
-        <input id="toggleLeads" type="checkbox" class="rounded accent-gray-900" checked /> แสดง Leads
-      </label>
-      <label class="inline-flex items-center gap-2 text-sm cursor-pointer">
-        <input id="toggleNearest" type="checkbox" class="rounded accent-gray-900" checked /> คำนวณรถใกล้สุด
-      </label>
-    </div>
-
-    <div class="flex gap-2 flex-wrap mt-2">
-      <button id="btnRefresh" class="px-3 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition">รีเฟรช</button>
-      <button id="btnReset" class="px-3 py-2 text-sm rounded-lg border hover:bg-gray-50 transition">ล้างตัวกรอง</button>
-      <button id="btnExport" class="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition">Export</button>
-    </div>
-
-    <div class="rounded-xl border bg-white p-3 mt-2 shadow-sm">
-      <div class="text-xs text-gray-500 mb-1">สรุปข้อมูลตามแผนที่</div>
-      <div id="summary" class="text-sm grid grid-cols-2 gap-x-3 gap-y-1">
-        <div>Customers:</div><div id="sumCustomers" class="font-semibold">-</div>
-        <div>Leads:</div><div id="sumLeads" class="font-semibold">-</div>
-        <div>ลูกค้า Active:</div><div id="sumActive" class="font-semibold text-emerald-600">-</div>
-        <div>เสี่ยง/หาย:</div><div id="sumRiskyLost" class="font-semibold text-red-500">-</div>
-      </div>
-      <div id="errorBox" class="text-xs text-red-600 mt-2 hidden"></div>
-    </div>
-  </div>
-</div>
-
-        <div class="flex items-center gap-3">
-          <label class="inline-flex items-center gap-2 text-sm">
-            <input id="toggleLeads" type="checkbox" class="rounded" checked /> แสดง Leads
-          </label>
-          <label class="inline-flex items-center gap-2 text-sm">
-            <input id="toggleNearest" type="checkbox" class="rounded" checked /> คำนวณรถที่ใกล้สุดให้ Leads
-          </label>
+        <div class="flex gap-2 flex-wrap mt-2">
+          <button id="btnRefresh" class="px-3 py-2 text-sm rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition">รีเฟรช</button>
+          <button id="btnReset" class="px-3 py-2 text-sm rounded-lg border hover:bg-gray-50 transition">ล้างตัวกรอง</button>
+          <button id="btnExport" class="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition">Export</button>
         </div>
-        <div class="flex gap-2 flex-wrap">
-          <button id="btnRefresh" class="px-3 py-2 text-sm rounded-lg bg-gray-900 text-white">รีเฟรชข้อมูล</button>
-          <button id="btnReset" class="px-3 py-2 text-sm rounded-lg border">ล้างตัวกรอง</button>
-          <button id="btnExport" class="px-3 py-2 text-sm rounded-lg bg-emerald-600 text-white">ส่งออก (Excel)</button>
-        </div>
-        <div class="rounded-xl border bg-white p-3">
-          <div class="text-xs text-gray-500 mb-1">สรุป</div>
+
+        <div class="rounded-xl border bg-white p-3 mt-2 shadow-sm">
+          <div class="text-xs text-gray-500 mb-1">สรุปข้อมูลตามแผนที่</div>
           <div id="summary" class="text-sm grid grid-cols-2 gap-x-3 gap-y-1">
             <div>Customers:</div><div id="sumCustomers" class="font-semibold">-</div>
             <div>Leads:</div><div id="sumLeads" class="font-semibold">-</div>
-            <div>ลูกค้า Active:</div><div id="sumActive" class="font-semibold">-</div>
-            <div>เสี่ยงที่จะเป็นลูกค้าหาย:</div><div id="sumRisky" class="font-semibold">-</div>
-            <div>ลูกค้าหาย:</div><div id="sumLost" class="font-semibold">-</div>
-            <div>Winback/New:</div><div id="sumWinback" class="font-semibold">-</div>
-            <div>Dormant>60:</div><div id="sumDormant" class="font-semibold">-</div>
+            
+            <div class="text-emerald-600">Active:</div>
+            <div id="sumActive" class="font-semibold text-emerald-600">-</div>
+            
+            <div class="text-amber-600">Risky:</div>
+            <div id="sumRisky" class="font-semibold text-amber-600">-</div>
+            
+            <div class="text-red-600">Lost:</div>
+            <div id="sumLost" class="font-semibold text-red-600">-</div>
+            
+            <div class="text-blue-600">Winback:</div>
+            <div id="sumWinback" class="font-semibold text-blue-600">-</div>
+            
+            <div class="text-gray-400">Dormant:</div>
+            <div id="sumDormant" class="font-semibold text-gray-400">-</div>
           </div>
           <div id="errorBox" class="text-xs text-red-600 mt-2 hidden"></div>
         </div>
-        <div class="text-xs text-gray-500">ตั้งค่าในชีท: <span class="font-mono">Settings</span></div>
       </div>
     </div>
     <div id="map"></div>
@@ -636,13 +619,18 @@
       return true;
     }
 
-    function setSummary({customers, leads}){
+   function setSummary({customers, leads}){
       sumCustomers.textContent = customers.length;
       sumLeads.textContent = leads.length;
-      sumActive.textContent = customers.filter(c => (c._statusTH||'')==='ลูกค้า Active').length;
-      const risky = customers.filter(c => (c._statusTH||'')==='เสี่ยงที่จะเป็นลูกค้าหาย').length;
-      const lost = customers.filter(c => (c._statusTH||'')==='ลูกค้าหาย').length;
-      document.getElementById('sumRiskyLost').textContent = (risky + lost);
+
+      // ฟังก์ชันช่วยนับจำนวนตามสถานะ
+      const count = (st) => customers.filter(c => (c._statusTH||'') === st).length;
+
+      document.getElementById('sumActive').textContent = count('ลูกค้า Active');
+      document.getElementById('sumRisky').textContent  = count('เสี่ยงที่จะเป็นลูกค้าหาย');
+      document.getElementById('sumLost').textContent   = count('ลูกค้าหาย');
+      document.getElementById('sumWinback').textContent = count('ลูกค้ากลับมา/ลูกค้าใหม่');
+      document.getElementById('sumDormant').textContent = count('หายเกิน 60 วัน');
     }
 
     function render(){
