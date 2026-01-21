@@ -146,55 +146,55 @@
     <div id="map"></div>
   </div>
 
-  <div id="viewDash" class="hidden fixed inset-0 overflow-auto bg-gray-50/50">
-    <div class="max-w-[1400px] mx-auto px-4 pt-16 pb-10"> <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-3 mb-3">
+<div id="viewDash" class="hidden fixed inset-0 overflow-auto bg-gray-50/50">
+    <div class="max-w-[1600px] mx-auto px-4 pt-16 pb-12"> <div class="flex flex-col lg:flex-row lg:items-end justify-between gap-3 mb-4">
         <div>
-          <div class="text-xl font-extrabold text-gray-900">CRM Dashboard</div>
-          <div class="text-xs text-gray-500">สรุปการทำงานทีมขาย (Map + CRM Dataset)</div>
+          <div class="text-2xl font-extrabold text-gray-900">CRM Dashboard</div>
+          <div class="text-sm text-gray-500">สรุปภาพรวมและการวิเคราะห์รถรายคัน</div>
         </div>
         <div class="flex flex-wrap items-end gap-2 bg-white p-2 rounded-xl border shadow-sm">
           <div class="w-32"> 
             <label class="text-[10px] text-gray-600 font-semibold px-1">สาขา (BU)</label>
-            <select id="crmBranchFilter" class="w-full text-xs border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0"></select>
+            <select id="crmBranchFilter" class="w-full text-xs border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0 cursor-pointer hover:bg-gray-100"></select>
           </div>
           <div class="w-48">
             <label class="text-[10px] text-gray-600 font-semibold px-1">ผู้รับผิดชอบ</label>
-            <select id="crmOwnerFilter" class="w-full text-xs border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0"></select>
+            <select id="crmOwnerFilter" class="w-full text-xs border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0 cursor-pointer hover:bg-gray-100"></select>
           </div>
           <div class="w-60">
             <label class="text-[10px] text-gray-600 font-semibold px-1">ช่วงวันที่</label>
             <div class="grid grid-cols-2 gap-1">
-              <input id="dashStartDate" type="date" class="w-full text-xs border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0" />
-              <input id="dashEndDate" type="date" class="w-full text-xs border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0" />
+              <input id="dashStartDate" type="date" class="w-full text-xs border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0 cursor-pointer" />
+              <input id="dashEndDate" type="date" class="w-full text-xs border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0 cursor-pointer" />
             </div>
           </div>
-          <button id="btnDashRefresh" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-gray-900 text-white shadow hover:bg-gray-800 transition">รีเฟรช</button>
+          <button id="btnDashRefresh" class="px-4 py-1.5 text-xs font-bold rounded-lg bg-gray-900 text-white shadow hover:bg-gray-800 transition">รีเฟรช</button>
         </div>
       </div>
 
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-        <div class="rounded-xl border bg-white p-3 shadow-sm flex flex-col justify-between">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div class="rounded-xl border bg-white px-4 py-3 shadow-sm flex flex-col justify-between">
           <div class="text-[10px] text-gray-500 uppercase tracking-wide">Tasks ทั้งหมด</div>
           <div class="flex items-baseline gap-2 mt-1">
             <div class="text-2xl font-black text-gray-900" id="kpiTaskTotal">-</div>
             <div class="text-xs text-gray-500">ติดตาม: <span class="font-bold text-red-600" id="kpiTaskFollow">-</span></div>
           </div>
         </div>
-        <div class="rounded-xl border bg-white p-3 shadow-sm flex flex-col justify-between">
+        <div class="rounded-xl border bg-white px-4 py-3 shadow-sm flex flex-col justify-between">
           <div class="text-[10px] text-gray-500 uppercase tracking-wide">% Task Completed</div>
           <div class="flex items-baseline gap-2 mt-1">
             <div class="text-2xl font-black text-emerald-600" id="kpiTaskRate">-</div>
             <div class="text-xs text-gray-500">เสร็จ: <span class="font-bold text-gray-800" id="kpiTaskDone">-</span></div>
           </div>
         </div>
-        <div class="rounded-xl border bg-white p-3 shadow-sm flex flex-col justify-between">
+        <div class="rounded-xl border bg-white px-4 py-3 shadow-sm flex flex-col justify-between">
           <div class="text-[10px] text-gray-500 uppercase tracking-wide">Leads ทั้งหมด</div>
           <div class="flex items-baseline gap-2 mt-1">
             <div class="text-2xl font-black text-gray-900" id="kpiLeadTotal">-</div>
             <div class="text-xs text-gray-500">ติดตาม: <span class="font-bold text-red-600" id="kpiLeadFollow">-</span></div>
           </div>
         </div>
-        <div class="rounded-xl border bg-white p-3 shadow-sm flex flex-col justify-between">
+        <div class="rounded-xl border bg-white px-4 py-3 shadow-sm flex flex-col justify-between">
           <div class="text-[10px] text-gray-500 uppercase tracking-wide">% Leads Conversion</div>
           <div class="flex items-baseline gap-2 mt-1">
             <div class="text-2xl font-black text-blue-600" id="kpiLeadRate">-</div>
@@ -203,124 +203,125 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2 mb-3">
-        <div class="rounded-xl border bg-white p-3 shadow-sm">
-          <div class="text-xs font-bold text-gray-900 mb-2">Tasks: สถานะงาน</div>
-          <div class="h-48"><canvas id="chartTaskStatus"></canvas></div>
-        </div>
-        <div class="rounded-xl border bg-white p-3 shadow-sm">
-          <div class="text-xs font-bold text-gray-900 mb-2">Leads: สถานะงาน</div>
-          <div class="h-48"><canvas id="chartLeadStatus"></canvas></div>
-        </div>
-        <div class="rounded-xl border bg-white p-3 shadow-sm">
-          <div class="text-xs font-bold text-gray-900 mb-2">Tasks: ช่องทางติดต่อ</div>
-          <div class="h-48"><canvas id="chartTaskContact"></canvas></div>
-        </div>
-        <div class="rounded-xl border bg-white p-3 shadow-sm">
-          <div class="text-xs font-bold text-gray-900 mb-2">Tasks: ช่องทางขาย</div>
-          <div class="h-48"><canvas id="chartTaskChannel"></canvas></div>
-        </div>
-      </div>
-
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-3">
-        <div class="rounded-xl border bg-white p-3 shadow-sm">
-          <div class="flex items-end justify-between mb-2">
-            <div class="text-xs font-bold text-gray-900">Customers: สถานะลูกค้า</div>
-            <div class="text-[10px] text-gray-400">Google Sheet</div>
-          </div>
-          <div class="h-56"><canvas id="chartCustomerStatus"></canvas></div>
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-3 mb-4">
+        <div class="xl:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="rounded-xl border bg-white p-3 shadow-sm">
+              <div class="text-[10px] font-bold text-gray-900 mb-2 truncate">Tasks: สถานะ</div>
+              <div class="h-32"><canvas id="chartTaskStatus"></canvas></div>
+            </div>
+            <div class="rounded-xl border bg-white p-3 shadow-sm">
+              <div class="text-[10px] font-bold text-gray-900 mb-2 truncate">Leads: สถานะ</div>
+              <div class="h-32"><canvas id="chartLeadStatus"></canvas></div>
+            </div>
+            <div class="rounded-xl border bg-white p-3 shadow-sm">
+              <div class="text-[10px] font-bold text-gray-900 mb-2 truncate">Tasks: ช่องทางติดต่อ</div>
+              <div class="h-32"><canvas id="chartTaskContact"></canvas></div>
+            </div>
+            <div class="rounded-xl border bg-white p-3 shadow-sm">
+              <div class="text-[10px] font-bold text-gray-900 mb-2 truncate">Tasks: ช่องทางขาย</div>
+              <div class="h-32"><canvas id="chartTaskChannel"></canvas></div>
+            </div>
         </div>
         
-        <div class="rounded-xl border bg-white p-3 shadow-sm">
-          <div class="flex items-end justify-between mb-2">
-            <div class="text-xs font-bold text-gray-900">Top รถเสี่ยง/หาย (Risky+Lost)</div>
-            <div class="text-[10px] text-gray-400">ช่วงวันที่เลือก</div>
-          </div>
-          <div class="h-56"><canvas id="chartTruckRisk"></canvas></div>
+        <div class="grid grid-cols-2 gap-3">
+             <div class="rounded-xl border bg-white p-3 shadow-sm">
+                <div class="text-[10px] font-bold text-gray-900 mb-2 truncate">Customers Overview</div>
+                <div class="h-32"><canvas id="chartCustomerStatus"></canvas></div>
+             </div>
+             <div class="rounded-xl border bg-white p-3 shadow-sm">
+                <div class="text-[10px] font-bold text-gray-900 mb-2 truncate">Top เสี่ยง/หาย</div>
+                <div class="h-32"><canvas id="chartTruckRisk"></canvas></div>
+             </div>
         </div>
+      </div>
 
-        <div class="rounded-xl border bg-white p-3 shadow-sm">
-            <div class="flex items-end justify-between mb-2">
+      <div class="grid grid-cols-1 gap-6 mb-8">
+        
+        <div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-md">
+            <div class="flex items-center justify-between mb-4">
               <div>
-                <div class="text-xs font-bold text-gray-900">Truck Efficiency (Active %)</div>
+                <div class="text-lg font-bold text-gray-900">🚚 Truck Efficiency: คุณภาพพอร์ตลูกค้าตามรถ (100%)</div>
+                <div class="text-sm text-gray-500">กราฟแสดงสัดส่วนลูกค้า Active เทียบกับลูกค้าที่มีปัญหา (เรียงลำดับจากดีที่สุด)</div>
               </div>
             </div>
-            <div class="h-56"><canvas id="chartTruckEfficiency"></canvas></div>
+            <div class="h-[400px] w-full"><canvas id="chartTruckEfficiency"></canvas></div>
+        </div>
+
+        <div class="rounded-2xl border border-gray-200 bg-white shadow-md overflow-hidden">
+          <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
+            <div>
+                 <div class="text-lg font-bold text-gray-900">📋 สรุปการขายรายรถ (Detailed List)</div>
+                 <div class="text-xs text-gray-500">สามารถเลื่อนดูข้อมูลรถทั้งหมดได้ในตารางนี้</div>
+            </div>
+            <div class="text-xs text-gray-400 bg-white px-2 py-1 rounded border">Top 3 Owners per Truck</div>
+          </div>
+          <div class="overflow-auto max-h-[500px] custom-scrollbar">
+            <table class="min-w-full text-sm">
+              <thead class="text-gray-500 bg-white sticky top-0 shadow-sm z-10 text-xs uppercase tracking-wider">
+                <tr>
+                  <th class="text-left p-3 bg-gray-100 font-semibold w-24">รถ</th>
+                  <th class="text-left p-3 bg-gray-100 font-semibold">ผู้รับผิดชอบหลัก</th>
+                  <th class="text-right p-3 bg-gray-100 font-semibold w-20">รวม</th>
+                  <th class="text-right p-3 bg-gray-100 font-semibold text-emerald-700 w-20">Active</th>
+                  <th class="text-right p-3 bg-gray-100 font-semibold text-amber-600 w-20">Risky</th>
+                  <th class="text-right p-3 bg-gray-100 font-semibold text-red-600 w-20">Lost</th>
+                  <th class="text-right p-3 bg-gray-100 font-semibold text-blue-600 w-24">Winback</th>
+                  <th class="text-right p-3 bg-gray-100 font-semibold text-gray-500 w-24">Dormant</th>
+                </tr>
+              </thead>
+              <tbody id="truckTableBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      <div class="rounded-xl border bg-white shadow-sm mb-6 overflow-hidden">
-        <div class="p-3 bg-gray-50 border-b flex justify-between items-center">
-          <div class="text-xs font-bold text-gray-900">สรุปการขายตามรถ (ลูกค้า Active vs Lost)</div>
-          <div class="text-[10px] text-gray-400">Top 3 Owners per Truck</div>
-        </div>
-        <div class="overflow-auto max-h-64 custom-scrollbar"> <table class="min-w-full text-xs">
-            <thead class="text-gray-500 bg-white sticky top-0 shadow-sm z-10">
-              <tr>
-                <th class="text-left p-2 bg-gray-50">รถ</th>
-                <th class="text-left p-2 bg-gray-50">ผู้รับผิดชอบ</th>
-                <th class="text-right p-2 bg-gray-50">รวม</th>
-                <th class="text-right p-2 bg-gray-50">Active</th>
-                <th class="text-right p-2 bg-gray-50">Risky</th>
-                <th class="text-right p-2 bg-gray-50">Lost</th>
-                <th class="text-right p-2 bg-gray-50">Winback</th>
-                <th class="text-right p-2 bg-gray-50">Dormant</th>
-              </tr>
-            </thead>
-            <tbody id="truckTableBody"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="border-t pt-4">
-        <h2 class="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-            📊 ผลการลงพื้นที่ & ยอดขาย (Actual Visits)
-            <span class="text-xs font-normal text-gray-500">ข้อมูลจาก Sheet "leads"</span>
+      <div class="border-t pt-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            📊 ผลการลงพื้นที่ & ยอดขายจริง (Actual Visits)
+            <span class="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">ข้อมูลจาก Sheet "leads"</span>
         </h2>
 
-        <div class="grid grid-cols-3 gap-3 mb-3">
-          <div class="rounded-xl bg-slate-800 text-white p-3 shadow relative overflow-hidden flex flex-col justify-center h-24">
-             <div class="relative z-10">
-               <div class="text-slate-300 text-[10px] uppercase">เข้าพบ (ราย)</div>
-               <div class="text-2xl font-bold" id="actVisitCount">-</div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+          <div class="grid grid-cols-3 lg:grid-cols-1 gap-4 lg:col-span-1">
+              <div class="rounded-xl bg-slate-800 text-white p-4 shadow relative overflow-hidden flex flex-col justify-center h-28">
+                 <div class="relative z-10">
+                   <div class="text-slate-300 text-[10px] uppercase tracking-wider">เข้าพบ (ราย)</div>
+                   <div class="text-3xl font-bold mt-1" id="actVisitCount">-</div>
+                 </div>
+                 <div class="absolute -right-4 -bottom-6 w-20 h-20 rounded-full border-4 border-slate-600/30"></div>
+              </div>
+              <div class="rounded-xl bg-emerald-600 text-white p-4 shadow relative overflow-hidden flex flex-col justify-center h-28">
+                  <div class="relative z-10">
+                   <div class="text-emerald-100 text-[10px] uppercase tracking-wider">ปิดการขาย (ช่วงนี้)</div>
+                   <div class="text-3xl font-bold mt-1" id="actSaleRange">-</div>
+                   <div class="text-xs opacity-80 mt-1">Conv: <span id="actConvRange">-</span></div>
+                  </div>
+                  <div class="absolute -right-4 -bottom-6 w-20 h-20 rounded-full border-4 border-emerald-400/30"></div>
+              </div>
+              <div class="rounded-xl bg-blue-600 text-white p-4 shadow relative overflow-hidden flex flex-col justify-center h-28">
+                  <div class="relative z-10">
+                   <div class="text-blue-100 text-[10px] uppercase tracking-wider">ปิดการขาย (สะสม)</div>
+                   <div class="text-3xl font-bold mt-1" id="actSaleAcc">-</div>
+                  </div>
+                  <div class="absolute -right-4 -bottom-6 w-20 h-20 rounded-full border-4 border-blue-400/30"></div>
+              </div>
+          </div>
+
+          <div class="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div class="rounded-xl border bg-white p-4 shadow-sm h-full">
+               <div class="text-xs font-bold text-gray-900 mb-3">จำนวนเข้าพบ (เปรียบเทียบ)</div>
+               <div class="h-72"><canvas id="chartActualVisits"></canvas></div>
              </div>
-             <div class="absolute -right-3 -bottom-5 w-16 h-16 rounded-full border-4 border-slate-600/30"></div>
+             <div class="rounded-xl border bg-white p-4 shadow-sm h-full">
+               <div class="text-xs font-bold text-gray-900 mb-3">สรุปยอดปิดการขาย (ราย)</div>
+               <div class="h-72"><canvas id="chartActualSales"></canvas></div>
+             </div>
           </div>
-
-          <div class="rounded-xl bg-emerald-600 text-white p-3 shadow relative overflow-hidden flex flex-col justify-center h-24">
-              <div class="relative z-10">
-               <div class="text-emerald-100 text-[10px] uppercase">ปิดการขาย (ช่วงนี้)</div>
-               <div class="text-2xl font-bold" id="actSaleRange">-</div>
-               <div class="text-[10px] opacity-80">Conv: <span id="actConvRange">-</span></div>
-              </div>
-              <div class="absolute -right-3 -bottom-5 w-16 h-16 rounded-full border-4 border-emerald-400/30"></div>
-          </div>
-
-          <div class="rounded-xl bg-blue-600 text-white p-3 shadow relative overflow-hidden flex flex-col justify-center h-24">
-              <div class="relative z-10">
-               <div class="text-blue-100 text-[10px] uppercase">ปิดการขาย (สะสม)</div>
-               <div class="text-2xl font-bold" id="actSaleAcc">-</div>
-              </div>
-              <div class="absolute -right-3 -bottom-5 w-16 h-16 rounded-full border-4 border-blue-400/30"></div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-           <div class="rounded-xl border bg-white p-3 shadow-sm">
-             <div class="text-xs font-bold text-gray-900 mb-2">จำนวนเข้าพบ (เปรียบเทียบ)</div>
-             <div class="h-56"><canvas id="chartActualVisits"></canvas></div>
-           </div>
-
-           <div class="rounded-xl border bg-white p-3 shadow-sm">
-             <div class="text-xs font-bold text-gray-900 mb-2">สรุปยอดปิดการขาย (ราย)</div>
-             <div class="h-56"><canvas id="chartActualSales"></canvas></div>
-           </div>
         </div>
       </div>
 
     </div>
   </div>
-
 
 
 
