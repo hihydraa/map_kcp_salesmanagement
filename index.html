@@ -155,14 +155,14 @@
         <div class="flex flex-wrap items-end gap-2 bg-white p-2 rounded-xl border shadow-sm">
           <div class="w-32"> 
             <label class="text-[10px] text-gray-600 font-semibold px-1">สาขา (BU)</label>
-            <select id="crmBranchFilter" class="w-full text-xs border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0 cursor-pointer hover:bg-gray-100"></select>
+            <select id="crmBranchFilter" class="w-full text-s border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0 cursor-pointer hover:bg-gray-100"></select>
           </div>
           <div class="w-48">
             <label class="text-[10px] text-gray-600 font-semibold px-1">ผู้รับผิดชอบ</label>
-            <select id="crmOwnerFilter" class="w-full text-xs border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0 cursor-pointer hover:bg-gray-100"></select>
+            <select id="crmOwnerFilter" class="w-full text-s border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0 cursor-pointer hover:bg-gray-100"></select>
           </div>
           <div class="w-60">
-            <label class="text-[10px] text-gray-600 font-semibold px-1">ช่วงวันที่</label>
+            <label class="text-[14px] text-gray-600 font-semibold px-1">ช่วงวันที่</label>
             <div class="grid grid-cols-2 gap-1">
               <input id="dashStartDate" type="date" class="w-full text-xs border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0 cursor-pointer" />
               <input id="dashEndDate" type="date" class="w-full text-xs border-none bg-gray-50 rounded-lg p-1.5 focus:ring-0 cursor-pointer" />
@@ -174,31 +174,31 @@
 
       <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <div class="rounded-xl border bg-white px-5 py-4 shadow-sm flex flex-col justify-between">
-          <div class="text-[10px] text-gray-500 uppercase tracking-wide">Tasks ทั้งหมด</div>
+          <div class="text-[14px] text-gray-500 uppercase tracking-wide">Tasks ทั้งหมด</div>
           <div class="flex items-baseline gap-2 mt-1">
             <div class="text-3xl font-black text-gray-900" id="kpiTaskTotal">-</div>
-            <div class="text-xs text-gray-500">ติดตาม: <span class="font-bold text-red-600" id="kpiTaskFollow">-</span></div>
+            <div class="text-s text-gray-500">ติดตาม: <span class="font-bold text-red-600" id="kpiTaskFollow">-</span></div>
           </div>
         </div>
         <div class="rounded-xl border bg-white px-5 py-4 shadow-sm flex flex-col justify-between">
-          <div class="text-[10px] text-gray-500 uppercase tracking-wide">% Task Completed</div>
+          <div class="text-[14px] text-gray-500 uppercase tracking-wide">% Task Completed</div>
           <div class="flex items-baseline gap-2 mt-1">
             <div class="text-3xl font-black text-emerald-600" id="kpiTaskRate">-</div>
-            <div class="text-xs text-gray-500">เสร็จ: <span class="font-bold text-gray-800" id="kpiTaskDone">-</span></div>
+            <div class="text-s text-gray-500">เสร็จ: <span class="font-bold text-gray-800" id="kpiTaskDone">-</span></div>
           </div>
         </div>
         <div class="rounded-xl border bg-white px-5 py-4 shadow-sm flex flex-col justify-between">
-          <div class="text-[10px] text-gray-500 uppercase tracking-wide">Leads ทั้งหมด</div>
+          <div class="text-[14px] text-gray-500 uppercase tracking-wide">Leads ทั้งหมด</div>
           <div class="flex items-baseline gap-2 mt-1">
             <div class="text-3xl font-black text-gray-900" id="kpiLeadTotal">-</div>
-            <div class="text-xs text-gray-500">ติดตาม: <span class="font-bold text-red-600" id="kpiLeadFollow">-</span></div>
+            <div class="text-s text-gray-500">ติดตาม: <span class="font-bold text-red-600" id="kpiLeadFollow">-</span></div>
           </div>
         </div>
         <div class="rounded-xl border bg-white px-5 py-4 shadow-sm flex flex-col justify-between">
-          <div class="text-[10px] text-gray-500 uppercase tracking-wide">% Leads Conversion</div>
+          <div class="text-[14px] text-gray-500 uppercase tracking-wide">% Leads Conversion</div>
           <div class="flex items-baseline gap-2 mt-1">
             <div class="text-3xl font-black text-blue-600" id="kpiLeadRate">-</div>
-            <div class="text-xs text-gray-500">ปิดได้: <span class="font-bold text-gray-800" id="kpiLeadWon">-</span></div>
+            <div class="text-s text-gray-500">ปิดได้: <span class="font-bold text-gray-800" id="kpiLeadWon">-</span></div>
           </div>
         </div>
       </div>
