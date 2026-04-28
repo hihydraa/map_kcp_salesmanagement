@@ -965,15 +965,20 @@
         const leads = rows.filter(r=>isLeadRow(r));
 
         // KPI
-        const taskCustomers = new Set(tasks.map(r=>norm(r[CRM_COLS.customer])).filter(Boolean));
-        const taskDoneCustomers = new Set(tasks.filter(isDoneRow).map(r=>norm(r[CRM_COLS.customer])).filter(Boolean));
-        const taskDone = taskDoneCustomers.size;
-        const taskTotal = taskCustomers.size;
+
+
+        // KPI: นับจำนวนงานจริงตามจำนวนแถว ไม่ใช่ Unique ลูกค้า
+        const taskTotal = tasks.length;
+        const taskDone = tasks.filter(isDoneRow).length;
         
-        const leadCustomers = new Set(leads.map(r=>norm(r[CRM_COLS.customer])).filter(Boolean));
-        const leadWonCustomers = new Set(leads.filter(isDoneRow).map(r=>norm(r[CRM_COLS.customer])).filter(Boolean));
-        const leadWon = leadWonCustomers.size;
-        const leadTotal = leadCustomers.size;
+        const leadTotal = leads.length;
+        const leadWon = leads.filter(isDoneRow).length;
+      
+        
+        
+       
+       
+      
 
         kpiTaskTotal.textContent = taskTotal.toLocaleString();
         kpiTaskDone.textContent = taskDone.toLocaleString();
