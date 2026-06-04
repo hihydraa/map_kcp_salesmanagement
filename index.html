@@ -56,7 +56,7 @@
       <div class="p-4 border-b">
         <h1 class="text-xl font-bold text-gray-900">KCP Map For Sales Management</h1>
         <p class="text-xs text-gray-500">เลือกได้หลายตัวเลือก (Multi-Select)</p>
-        <p class="text-xs text-gray-500">อัพเดตข้อมูลยอดขายล่าสุด 31 พฤษภาคม 69</p>
+        <p class="text-xs text-gray-500">อัพเดตข้อมูลยอดขายล่าสุด 30 เมษายน 69</p>
       </div>
       <div class="p-4 flex flex-col gap-3">
         <div class="grid grid-cols-2 gap-2">
@@ -342,6 +342,23 @@
     const CRM_SHEET_ID = "1Nxbvm7R6AqwTpUtI8AHEVY2HZv0gAnYcrC_lBDTe5os";
     const CRM_SHEETS = { dataset: "Dataset" };
 
+    // กำหนดสีรถไว้ใน Code โดยตรง ไม่ต้องดึงสีจาก Google Sheet: Trucks column color
+    const FIXED_TRUCK_COLORS = {
+      "MT-57": "#63079C",
+      "MT-71": "#FFD22E",
+      "MT-65": "#FF61EF",
+      "MT-55": "#FF7700",
+      "CH-66": "#002BFF",
+      "MT-60": "#6D6664",
+      "MT-67": "#FA1196",
+      "CH-69": "#8BE6FD",
+      "MT-72": "#440E03",
+      "MT-61": "#C44AFF",
+      "CH-67": "#00FFE1",
+      "MT-58": "#1DFF00"
+    };
+
+
     const ALLOWED_SALES_NAMES = [
       "ชาญชัย (ต้อม)", "ณัฏฐภรณ์ (อ้อม)", "ธีระพันธ์ (จุ่น)", "บุญย์มนัส (คุณฝน)", "ปิยธิดา (อุ้ย)" , "วีระ" , "สิทธิพล"
     ];
@@ -408,7 +425,7 @@
     }
 
     function norm(v){ return (v==null?'':String(v)).trim(); }
-    const normId = (id) => (id || "").toString().trim().toLowerCase();
+    const normId = (id) => (id || "").toString().trim().toUpperCase().replace(/\s+/g, "");
     
     const normHex = (c) => {
       if (!c) return "";
@@ -431,7 +448,7 @@
 
     function getTruckColor(id) {
       const key = normId(id);
-      return truckColorMap[key] || "";
+      return FIXED_TRUCK_COLORS[key] || "";
     }
 
     function getOwnerGroup(rawName) {
@@ -665,7 +682,7 @@
       data.trucks.forEach(t=>{
         const lat=+ (t.latitude||t.lat||t.lattitude), lng=+ (t.longitude||t.lng||t.longtitude||t.lon);
         if(!isFinite(lat)||!isFinite(lng)) return;
-        const col=normHex(t.color)||'#111827';
+        const col = getTruckColor(t.truck_id) || '#111827';
         L.circleMarker([lat,lng],{radius:7,color:col,weight:2,fillColor:'#fff',fillOpacity:1})
           .bindTooltip(`<div class="text-sm font-bold">${t.truck_id}</div>`,{className:'my',sticky:true})
           .addTo(layerTrucks);
@@ -728,12 +745,8 @@
           fetchSheet(SHEETS.settings), fetchSheet(SHEETS.customers), fetchSheet(SHEETS.leads), fetchSheet(SHEETS.trucks)
         ]);
         const customersData = customersRaw.map(c => ({ ...c, _statusTH: mapStatusTH(c.status) }));
+        // ไม่ต้องดึงสีจาก Google Sheet แล้ว เพราะกำหนดสีรถไว้ใน Code โดยตรง
         truckColorMap = {};
-        trucks.forEach(t=>{
-          const key = normId(t.truck_id);
-          const col = normHex(t.color);
-          if (key && col) truckColorMap[key] = col;
-        });
         data={settings, customers: customersData, leads, trucks};
 
         // Map Setup
